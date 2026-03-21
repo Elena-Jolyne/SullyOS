@@ -1485,6 +1485,19 @@ export const OSProvider: React.FC<{ children: React.ReactNode }> = ({ children }
               return newObj;
           };
 
+          const isRedundantManagedAssetId = (id: string) => (
+              id === 'wallpaper' ||
+              id === 'launcherWidgetImage' ||
+              id === 'custom_font_data' ||
+              id === 'spark_social_profile' ||
+              id === 'spark_user_bg' ||
+              id === 'room_custom_assets_list' ||
+              id.startsWith('widget_') ||
+              id.startsWith('deco_') ||
+              id.startsWith('icon_') ||
+              id.startsWith('appearance_preset_')
+          );
+
           // 1. Define Stores to Process based on Mode
           let storesToProcess: string[] = [];
           const allStores = [
@@ -1588,6 +1601,13 @@ export const OSProvider: React.FC<{ children: React.ReactNode }> = ({ children }
               let processedData: any;
 
               // --- MODE SPECIFIC FILTERING ---
+
+              if (storeName === 'assets' && Array.isArray(rawData)) {
+                  rawData = rawData.filter((asset: { id?: string } | null | undefined) => {
+                      if (!asset || typeof asset.id !== 'string') return true;
+                      return !isRedundantManagedAssetId(asset.id);
+                  });
+              }
 
               if (mode === 'text_only') {
                   processedData = stripBase64(rawData);
@@ -1770,20 +1790,7 @@ export const OSProvider: React.FC<{ children: React.ReactNode }> = ({ children }
           await DB.importFullData(data);
           
           if (data.theme) {
-              const cleanTheme = { ...data.theme };
-              // Modified: Delete key instead of setting to empty string if it's a data URI
-              // This prevents updateTheme from triggering DB deletion for these assets if they were just restored to DB.
-              if (cleanTheme.wallpaper && cleanTheme.wallpaper.startsWith('data:')) { delete cleanTheme.wallpaper; }
-              if (cleanTheme.launcherWidgetImage && cleanTheme.launcherWidgetImage.startsWith('data:')) { delete cleanTheme.launcherWidgetImage; }
-              if (cleanTheme.launcherWidgets) {
-                  const cw = { ...cleanTheme.launcherWidgets };
-                  for (const k of Object.keys(cw)) { if (cw[k]?.startsWith('data:')) delete cw[k]; }
-                  cleanTheme.launcherWidgets = Object.keys(cw).length > 0 ? cw : undefined;
-              }
-              if (cleanTheme.customFont && cleanTheme.customFont.startsWith('data:')) { delete cleanTheme.customFont; }
-              // For desktop decorations: keep preset SVGs, strip uploaded image data URIs (they'll be re-saved by updateTheme from the data)
-              // Note: uploaded image decorations with data: content are passed through so updateTheme can save them to DB
-              updateTheme(cleanTheme);
+              await updateTheme(data.theme);
           }
           if (data.apiConfig) updateApiConfig(data.apiConfig);
           if (data.availableModels) saveModels(data.availableModels);

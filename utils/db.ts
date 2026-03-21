@@ -1394,7 +1394,7 @@ export const DB = {
       if (data.customThemes) mergeStore(STORE_THEMES, data.customThemes);
       if (data.savedEmojis) mergeStore(STORE_EMOJIS, data.savedEmojis);
       if (data.emojiCategories) mergeStore(STORE_EMOJI_CATEGORIES, data.emojiCategories); 
-      if (data.assets) mergeStore(STORE_ASSETS, data.assets);
+      if (data.assets !== undefined) clearAndAdd(STORE_ASSETS, data.assets || []);
       if (data.savedJournalStickers) mergeStore(STORE_JOURNAL_STICKERS, data.savedJournalStickers);
 
       if (data.galleryImages) clearAndAdd(STORE_GALLERY, data.galleryImages);

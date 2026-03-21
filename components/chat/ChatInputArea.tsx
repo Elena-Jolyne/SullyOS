@@ -225,6 +225,41 @@ const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         : isDiscordStyle
           ? 'bg-slate-900/95 border-t border-white/10'
           : 'bg-slate-50 border-t border-slate-200/60';
+    const panelTopBarClass = isPixelStyle
+        ? 'h-10 bg-[#eadfce] border-b-2 border-[#8f674a] flex items-center px-2 gap-2 overflow-x-auto no-scrollbar shrink-0'
+        : isDiscordStyle
+          ? 'h-10 bg-slate-950 border-b border-white/10 flex items-center px-2 gap-2 overflow-x-auto no-scrollbar shrink-0'
+          : 'h-10 bg-white border-b border-slate-100 flex items-center px-2 gap-2 overflow-x-auto no-scrollbar shrink-0';
+    const inactiveCategoryClass = isPixelStyle
+        ? 'bg-[#f3e7d6] text-[#8f674a] border border-[#8f674a]/30'
+        : isDiscordStyle
+          ? 'bg-slate-800 text-slate-300 border border-white/10'
+          : 'bg-slate-100 text-slate-500 border border-transparent';
+    const activeCategoryClass = isPixelStyle
+        ? 'bg-[#c99872] text-[#fff7ed] font-bold border border-[#8f674a]'
+        : isDiscordStyle
+          ? 'bg-indigo-500 text-white font-bold border border-indigo-400/60 shadow-sm'
+          : 'bg-primary text-white font-bold shadow-sm border border-transparent';
+    const categoryAddButtonClass = isPixelStyle
+        ? 'w-6 h-6 rounded-full border border-[#8f674a] bg-[#f8f0e0] text-[#8f674a] flex items-center justify-center shrink-0 hover:bg-[#fff7ed]'
+        : isDiscordStyle
+          ? 'w-6 h-6 rounded-full border border-white/10 bg-slate-800 text-slate-300 flex items-center justify-center shrink-0 hover:bg-slate-700'
+          : 'w-6 h-6 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center shrink-0 hover:bg-slate-200';
+    const emojiImportTileClass = isPixelStyle
+        ? 'aspect-square bg-[#fff7ed] rounded-2xl border-2 border-dashed border-[#8f674a]/40 flex items-center justify-center text-2xl text-[#8f674a]'
+        : isDiscordStyle
+          ? 'aspect-square bg-slate-800 rounded-2xl border-2 border-dashed border-slate-700 flex items-center justify-center text-2xl text-slate-400'
+          : 'aspect-square bg-slate-100 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center text-2xl text-slate-400';
+    const emojiTileClass = isPixelStyle
+        ? 'bg-[#fff7ed] rounded-2xl p-2 border-2 border-[#8f674a]/20 shadow-sm relative active:scale-95 transition-transform select-none flex flex-col items-center'
+        : isDiscordStyle
+          ? 'bg-slate-800 rounded-2xl p-2 border border-white/10 shadow-sm relative active:scale-95 transition-transform select-none flex flex-col items-center'
+          : 'bg-white rounded-2xl p-2 shadow-sm relative active:scale-95 transition-transform select-none flex flex-col items-center';
+    const emojiLabelClass = isPixelStyle
+        ? 'text-[#8f674a]'
+        : isDiscordStyle
+          ? 'text-slate-400'
+          : 'text-slate-400';
 
     return (
         <div className={`${shellClass} pb-safe shrink-0 z-40 relative`}>
@@ -292,7 +327,7 @@ const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                     {showPanel === 'emojis' && (
                         <>
                             {/* Categories Bar */}
-                            <div className="h-10 bg-white border-b border-slate-100 flex items-center px-2 gap-2 overflow-x-auto no-scrollbar shrink-0">
+                            <div className={panelTopBarClass}>
                                 {categories.map(cat => (
                                     <button 
                                         key={cat.id} 
@@ -306,7 +341,7 @@ const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                                         onMouseUp={handleTouchEnd}
                                         onMouseLeave={handleTouchEnd}
                                         onContextMenu={(e) => e.preventDefault()}
-                                        className={`px-3 py-1 text-xs rounded-full whitespace-nowrap transition-all select-none flex items-center gap-1 ${activeCategory === cat.id ? 'bg-primary text-white font-bold shadow-sm' : 'bg-slate-100 text-slate-500'}`}
+                                        className={`px-3 py-1 text-xs rounded-full whitespace-nowrap transition-all select-none flex items-center gap-1 ${activeCategory === cat.id ? activeCategoryClass : inactiveCategoryClass}`}
                                     >
                                         {cat.name}
                                         {cat.allowedCharacterIds && cat.allowedCharacterIds.length > 0 && (
@@ -314,12 +349,12 @@ const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                                         )}
                                     </button>
                                 ))}
-                                <button onClick={() => onPanelAction('add-category')} className="w-6 h-6 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center shrink-0 hover:bg-slate-200">+</button>
+                                <button onClick={() => onPanelAction('add-category')} className={categoryAddButtonClass}>+</button>
                             </div>
 
                             <div className="flex-1 overflow-y-auto no-scrollbar p-4">
                                 <div className="grid grid-cols-4 gap-3">
-                                    <button onClick={() => onPanelAction('emoji-import')} className="aspect-square bg-slate-100 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center text-2xl text-slate-400">+</button>
+                                    <button onClick={() => onPanelAction('emoji-import')} className={emojiImportTileClass}>+</button>
                                     {emojis.map((e, i) => (
                                         <button 
                                             key={i} 
@@ -333,12 +368,12 @@ const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                                             onMouseUp={handleTouchEnd}
                                             onMouseLeave={handleTouchEnd}
                                             onContextMenu={(ev) => ev.preventDefault()}
-                                            className="bg-white rounded-2xl p-2 shadow-sm relative active:scale-95 transition-transform select-none flex flex-col items-center"
+                                            className={emojiTileClass}
                                         >
                                             <div className="aspect-square w-full">
                                                 <img src={e.url} className="w-full h-full object-contain pointer-events-none" />
                                             </div>
-                                            <span className="text-[9px] text-slate-400 truncate w-full text-center mt-0.5 leading-tight pointer-events-none">{e.name}</span>
+                                            <span className={`text-[9px] truncate w-full text-center mt-0.5 leading-tight pointer-events-none ${emojiLabelClass}`}>{e.name}</span>
                                         </button>
                                     ))}
                                 </div>
@@ -349,33 +384,33 @@ const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                     {/* Actions Panel */}
                     {showPanel === 'actions' && (
                         <div className="p-6 grid grid-cols-4 gap-8 overflow-y-auto">
-                            <button onClick={() => onPanelAction('transfer')} className="flex flex-col items-center gap-2 text-slate-600 active:scale-95 transition-transform">
-                                <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center shadow-sm text-orange-400 border border-orange-100">
+                            <button onClick={() => onPanelAction('transfer')} className={`flex flex-col items-center gap-2 active:scale-95 transition-transform ${isDiscordStyle ? 'text-slate-200' : 'text-slate-600'}`}>
+                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm border ${isDiscordStyle ? 'bg-slate-800 text-orange-300 border-orange-400/20' : 'bg-orange-50 text-orange-400 border-orange-100'}`}>
                                     <Money className="w-6 h-6" weight="bold" />
                                 </div>
                                 <span className="text-xs font-bold">转账</span>
                             </button>
                             
-                            <button onClick={() => onPanelAction('poke')} className="flex flex-col items-center gap-2 text-slate-600 active:scale-95 transition-transform">
-                                <div className="w-14 h-14 bg-sky-50 rounded-2xl flex items-center justify-center shadow-sm border border-sky-100"><img src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/1f449.png" alt="poke" className="w-6 h-6" /></div>
+                            <button onClick={() => onPanelAction('poke')} className={`flex flex-col items-center gap-2 active:scale-95 transition-transform ${isDiscordStyle ? 'text-slate-200' : 'text-slate-600'}`}>
+                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm border ${isDiscordStyle ? 'bg-slate-800 border-sky-400/20' : 'bg-sky-50 border-sky-100'}`}><img src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/1f449.png" alt="poke" className="w-6 h-6" /></div>
                                 <span className="text-xs font-bold">戳一戳</span>
                             </button>
                             
-                            <button onClick={() => onPanelAction('archive')} className="flex flex-col items-center gap-2 text-slate-600 active:scale-95 transition-transform">
-                                <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center shadow-sm text-indigo-400 border border-indigo-100">
+                            <button onClick={() => onPanelAction('archive')} className={`flex flex-col items-center gap-2 active:scale-95 transition-transform ${isDiscordStyle ? 'text-slate-200' : 'text-slate-600'}`}>
+                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm border ${isDiscordStyle ? 'bg-slate-800 text-indigo-300 border-indigo-400/20' : 'bg-indigo-50 text-indigo-400 border-indigo-100'}`}>
                                     <BookOpenText className="w-6 h-6" weight="bold" />
                                 </div>
                                 <span className="text-xs font-bold">{isSummarizing ? '归档中...' : '记忆归档'}</span>
                             </button>
                             
-                            <button onClick={() => onPanelAction('settings')} className="flex flex-col items-center gap-2 text-slate-600 active:scale-95 transition-transform">
-                                <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center shadow-sm text-slate-500 border border-slate-100">
+                            <button onClick={() => onPanelAction('settings')} className={`flex flex-col items-center gap-2 active:scale-95 transition-transform ${isDiscordStyle ? 'text-slate-200' : 'text-slate-600'}`}>
+                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm border ${isDiscordStyle ? 'bg-slate-800 text-slate-300 border-white/10' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
                                     <GearSix className="w-6 h-6" weight="bold" /></div>
                                 <span className="text-xs font-bold">设置</span>
                             </button>
                             
-                            <button onClick={() => chatImageInputRef.current?.click()} className="flex flex-col items-center gap-2 text-slate-600 active:scale-95 transition-transform">
-                                <div className="w-14 h-14 bg-pink-50 rounded-2xl flex items-center justify-center shadow-sm text-pink-400 border border-pink-100">
+                            <button onClick={() => chatImageInputRef.current?.click()} className={`flex flex-col items-center gap-2 active:scale-95 transition-transform ${isDiscordStyle ? 'text-slate-200' : 'text-slate-600'}`}>
+                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm border ${isDiscordStyle ? 'bg-slate-800 text-pink-300 border-pink-400/20' : 'bg-pink-50 text-pink-400 border-pink-100'}`}>
                                     <Image className="w-6 h-6" weight="bold" />
                                 </div>
                                 <span className="text-xs font-bold">相册</span>
@@ -383,29 +418,29 @@ const ChatInputArea: React.FC<ChatInputAreaProps> = ({
                             <input type="file" ref={chatImageInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageChange(e, 'chat')} />
 
                             {/* Regenerate Button */}
-                            <button onClick={onReroll} disabled={!canReroll} className={`flex flex-col items-center gap-2 active:scale-95 transition-transform ${canReroll ? 'text-slate-600' : 'text-slate-300 opacity-50'}`}>
-                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm border ${canReroll ? 'bg-emerald-50 text-emerald-400 border-emerald-100' : 'bg-slate-50 text-slate-300 border-slate-100'}`}>
+                            <button onClick={onReroll} disabled={!canReroll} className={`flex flex-col items-center gap-2 active:scale-95 transition-transform ${canReroll ? (isDiscordStyle ? 'text-slate-200' : 'text-slate-600') : 'text-slate-300 opacity-50'}`}>
+                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm border ${canReroll ? (isDiscordStyle ? 'bg-slate-800 text-emerald-300 border-emerald-400/20' : 'bg-emerald-50 text-emerald-400 border-emerald-100') : (isDiscordStyle ? 'bg-slate-800 text-slate-600 border-white/10' : 'bg-slate-50 text-slate-300 border-slate-100')}`}>
                                     <ArrowsClockwise className="w-6 h-6" weight="bold" />
                                 </div>
                                 <span className="text-xs font-bold">重新生成</span>
                             </button>
 
                             {/* Proactive Message Button */}
-                            <button onClick={() => onPanelAction('proactive')} className="flex flex-col items-center gap-2 text-slate-600 active:scale-95 transition-transform relative">
-                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm border ${isProactiveActive ? 'bg-violet-50 text-violet-500 border-violet-200' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
+                            <button onClick={() => onPanelAction('proactive')} className={`flex flex-col items-center gap-2 active:scale-95 transition-transform relative ${isDiscordStyle ? 'text-slate-200' : 'text-slate-600'}`}>
+                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm border ${isProactiveActive ? (isDiscordStyle ? 'bg-violet-500/15 text-violet-300 border-violet-400/30' : 'bg-violet-50 text-violet-500 border-violet-200') : (isDiscordStyle ? 'bg-slate-800 text-slate-400 border-white/10' : 'bg-slate-50 text-slate-400 border-slate-100')}`}>
                                     <ChatCircleDots className="w-6 h-6" weight="bold" />
                                 </div>
                                 <span className="text-xs font-bold">主动消息</span>
-                                {isProactiveActive && <span className="absolute top-0 right-1 w-2.5 h-2.5 bg-violet-500 rounded-full border-2 border-white" />}
+                                {isProactiveActive && <span className={`absolute top-0 right-1 w-2.5 h-2.5 rounded-full border-2 ${isDiscordStyle ? 'bg-violet-400 border-slate-900' : 'bg-violet-500 border-white'}`} />}
                             </button>
 
                             {/* Emotion Button */}
-                            <button onClick={() => onPanelAction('emotion')} className="flex flex-col items-center gap-2 text-slate-600 active:scale-95 transition-transform relative">
-                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm border ${isEmotionEnabled ? 'bg-pink-50 text-pink-500 border-pink-200' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
+                            <button onClick={() => onPanelAction('emotion')} className={`flex flex-col items-center gap-2 active:scale-95 transition-transform relative ${isDiscordStyle ? 'text-slate-200' : 'text-slate-600'}`}>
+                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm border ${isEmotionEnabled ? (isDiscordStyle ? 'bg-pink-500/15 text-pink-300 border-pink-400/30' : 'bg-pink-50 text-pink-500 border-pink-200') : (isDiscordStyle ? 'bg-slate-800 text-slate-400 border-white/10' : 'bg-slate-50 text-slate-400 border-slate-100')}`}>
                                     <SmileyWink className="w-6 h-6" weight="bold" />
                                 </div>
                                 <span className="text-xs font-bold">情绪</span>
-                                {isEmotionEnabled && <span className="absolute top-0 right-1 w-2.5 h-2.5 bg-pink-500 rounded-full border-2 border-white" />}
+                                {isEmotionEnabled && <span className={`absolute top-0 right-1 w-2.5 h-2.5 rounded-full border-2 ${isDiscordStyle ? 'bg-pink-400 border-slate-900' : 'bg-pink-500 border-white'}`} />}
                             </button>
 
                          </div>
