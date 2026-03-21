@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BankShopState, CharacterProfile, UserProfile, APIConfig, ShopStaff } from '../../types';
 import { SHOP_RECIPES } from './BankGameConstants';
+import BankAssetIcon from './BankAssetIcon';
 import { ContextBuilder } from '../../utils/context';
 import { useOS } from '../../context/OSContext';
 import { DB } from '../../utils/db';
@@ -393,7 +394,14 @@ Language: Chinese.`;
                          return r ? (
                              <div key={rid} className="flex flex-col items-center animate-fade-in group" style={{ animationDelay: `${i*100}ms` }}>
                                  <div className="relative">
-                                     <div className="text-4xl filter drop-shadow-lg transform group-hover:scale-110 group-hover:-translate-y-1 transition-all duration-300">{r.icon}</div>
+                                     <div className="w-10 h-10 flex items-center justify-center">
+                                         <BankAssetIcon
+                                             value={r.icon}
+                                             alt={r.name}
+                                             imgClassName="w-10 h-10 object-contain filter drop-shadow-lg transform group-hover:scale-110 group-hover:-translate-y-1 transition-all duration-300"
+                                             textClassName="text-4xl leading-none filter drop-shadow-lg transform group-hover:scale-110 group-hover:-translate-y-1 transition-all duration-300"
+                                         />
+                                     </div>
                                      {/* Reflection */}
                                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-2 bg-black/10 rounded-full blur-sm"></div>
                                  </div>

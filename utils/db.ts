@@ -1306,7 +1306,7 @@ export const DB = {
 
       const clearAndAdd = (storeName: string, items: any[]) => {
           if (!availableStores.includes(storeName)) return;
-          if (!items || items.length === 0) return; 
+          if (items === undefined || items === null) return;
           
           const store = tx.objectStore(storeName);
           store.clear();

@@ -6,6 +6,7 @@ import {
 import {
     ROOM_LAYOUTS, WALLPAPER_PRESETS, FLOOR_PRESETS, STICKER_LIBRARY, INITIAL_DOLLHOUSE
 } from './BankGameConstants';
+import BankAssetIcon, { isBankAssetUrl } from './BankAssetIcon';
 import { useOS } from '../../context/OSContext';
 import { DB } from '../../utils/db';
 import { processImage } from '../../utils/file';
@@ -687,7 +688,7 @@ const BankDollhouse: React.FC<Props> = ({
 
     // Enter furniture placement mode - surface auto-detected from click position
     const startPlacingFurniture = (url: string, surface: 'floor' | 'leftWall', name: string) => {
-        const isEmoji = !url.startsWith('http') && !url.startsWith('data');
+        const isEmoji = !isBankAssetUrl(url);
         setPlacingFurniture({ url, surface, name, isEmoji });
         setFurniturePreviewPos({ x: 50, y: 50 });
         setShowDecorPanel(false);
@@ -1182,7 +1183,12 @@ const BankDollhouse: React.FC<Props> = ({
                                                 }`}
                                             >
                                                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${isActive ? 'bg-[#FF8E6B]/10' : 'bg-[#F8F0E6]'}`}>
-                                                    {layout.icon}
+                                                    <BankAssetIcon
+                                                        value={layout.icon}
+                                                        alt={layout.name}
+                                                        imgClassName="w-6 h-6 object-contain"
+                                                        textClassName="text-xl leading-none"
+                                                    />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="text-xs font-bold text-[#6B4528]">{layout.name}</div>
@@ -1389,7 +1395,14 @@ const BankDollhouse: React.FC<Props> = ({
                                                 )}
                                                 className="flex flex-col items-center gap-1 p-2 rounded-xl bg-white border border-[#F0E3D6] hover:border-[#FF8E6B] hover:shadow-sm transition-all active:scale-95 group"
                                             >
-                                                <span className="text-2xl group-hover:scale-110 transition-transform">{sticker.url}</span>
+                                                <div className="w-8 h-8 flex items-center justify-center">
+                                                    <BankAssetIcon
+                                                        value={sticker.url}
+                                                        alt={sticker.name}
+                                                        imgClassName="w-8 h-8 object-contain group-hover:scale-110 transition-transform"
+                                                        textClassName="text-2xl leading-none group-hover:scale-110 transition-transform"
+                                                    />
+                                                </div>
                                                 <span className="text-[9px] text-[#B8956E] font-medium group-hover:text-[#FF8E6B] transition-colors">{sticker.name}</span>
                                             </button>
                                         ))}

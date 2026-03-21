@@ -2,6 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { BankFullState, ShopStaff, CharacterProfile } from '../../types';
 import { SHOP_RECIPES, AVAILABLE_STAFF } from './BankGameConstants';
+import BankAssetIcon from './BankAssetIcon';
 import { processImage } from '../../utils/file';
 import { UsersThree, Target, Sparkle, PawPrint, Link as LinkIcon, Camera, Check, Lightbulb, Confetti, Briefcase, CookingPot, HandWaving, Dog, Cat, Rabbit } from '@phosphor-icons/react';
 
@@ -364,7 +365,14 @@ const BankGameMenu: React.FC<Props> = ({
                             {AVAILABLE_STAFF.filter(s => !state.shop.staff.find(exist => exist.name === s.name)).map(s => (
                                 <div key={s.id} className="bg-[#FDF6E3] p-4 rounded-2xl border border-[#E8DCC8] flex items-center justify-between hover:bg-[#FFF8E1] transition-colors">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-12 h-12 rounded-xl bg-white/60 flex items-center justify-center text-2xl grayscale-[50%] opacity-80">{s.avatar}</div>
+                                        <div className="w-12 h-12 rounded-xl bg-white/60 flex items-center justify-center overflow-hidden">
+                                            <BankAssetIcon
+                                                value={s.avatar}
+                                                alt={s.name}
+                                                imgClassName="w-full h-full object-cover rounded-xl grayscale-[50%] opacity-80"
+                                                textClassName="text-2xl leading-none grayscale-[50%] opacity-80"
+                                            />
+                                        </div>
                                         <div>
                                             <div className="font-bold text-sm text-[#5D4037]">{s.name}</div>
                                             <div className="text-[10px] text-[#A1887F] uppercase tracking-wider">{s.role === 'manager' ? '经理' : s.role === 'chef' ? '主厨' : '服务员'}</div>

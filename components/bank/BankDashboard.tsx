@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { BankFullState, CharacterProfile } from '../../types';
+import BankAssetIcon from './BankAssetIcon';
 import { processImage } from '../../utils/file';
 
 interface Props {
@@ -196,7 +197,14 @@ const BankDashboard: React.FC<Props> = ({
                         <div key={goal.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden">
                             <div className="flex justify-between items-start mb-2 relative z-10">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-lg">{goal.icon}</span>
+                                    <div className="w-5 h-5 flex items-center justify-center">
+                                        <BankAssetIcon
+                                            value={goal.icon}
+                                            alt={goal.name}
+                                            imgClassName="w-5 h-5 object-contain"
+                                            textClassName="text-lg leading-none"
+                                        />
+                                    </div>
                                     <div>
                                         <div className="font-bold text-sm text-slate-700">{goal.name}</div>
                                         <div className="text-[10px] text-slate-400 font-mono">{state.config.currencySymbol}{goal.targetAmount}</div>
