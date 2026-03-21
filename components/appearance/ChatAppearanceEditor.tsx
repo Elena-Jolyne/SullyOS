@@ -9,7 +9,7 @@ type Props = {
 const presets: Array<{ name: string; desc: string; config: Partial<OSTheme> }> = [
     {
         name: '默认聊天',
-        desc: '柔和系统感',
+        desc: '柔和通用的聊天壳',
         config: {
             chatChromeStyle: 'soft',
             chatBackgroundStyle: 'plain',
@@ -19,6 +19,7 @@ const presets: Array<{ name: string; desc: string; config: Partial<OSTheme> }> =
             chatStatusStyle: 'subtle',
             chatAvatarShape: 'circle',
             chatAvatarSize: 'medium',
+            chatAvatarMode: 'grouped',
             chatBubbleStyle: 'modern',
             chatMessageSpacing: 'default',
             chatInputStyle: 'rounded',
@@ -28,7 +29,7 @@ const presets: Array<{ name: string; desc: string; config: Partial<OSTheme> }> =
     },
     {
         name: 'WeChat',
-        desc: '平整克制',
+        desc: '平整克制的熟悉感',
         config: {
             chatChromeStyle: 'flat',
             chatBackgroundStyle: 'paper',
@@ -38,6 +39,7 @@ const presets: Array<{ name: string; desc: string; config: Partial<OSTheme> }> =
             chatStatusStyle: 'dot',
             chatAvatarShape: 'square',
             chatAvatarSize: 'medium',
+            chatAvatarMode: 'grouped',
             chatBubbleStyle: 'wechat',
             chatMessageSpacing: 'default',
             chatInputStyle: 'wechat',
@@ -47,7 +49,7 @@ const presets: Array<{ name: string; desc: string; config: Partial<OSTheme> }> =
     },
     {
         name: 'Telegram',
-        desc: '轻玻璃感',
+        desc: '轻盈通透的玻璃感',
         config: {
             chatChromeStyle: 'floating',
             chatBackgroundStyle: 'mesh',
@@ -57,6 +59,7 @@ const presets: Array<{ name: string; desc: string; config: Partial<OSTheme> }> =
             chatStatusStyle: 'pill',
             chatAvatarShape: 'circle',
             chatAvatarSize: 'medium',
+            chatAvatarMode: 'grouped',
             chatBubbleStyle: 'flat',
             chatMessageSpacing: 'spacious',
             chatInputStyle: 'telegram',
@@ -66,7 +69,7 @@ const presets: Array<{ name: string; desc: string; config: Partial<OSTheme> }> =
     },
     {
         name: 'Discord',
-        desc: '深色频道感',
+        desc: '频道感更强的界面',
         config: {
             chatChromeStyle: 'floating',
             chatBackgroundStyle: 'grid',
@@ -76,6 +79,7 @@ const presets: Array<{ name: string; desc: string; config: Partial<OSTheme> }> =
             chatStatusStyle: 'pill',
             chatAvatarShape: 'rounded',
             chatAvatarSize: 'medium',
+            chatAvatarMode: 'grouped',
             chatBubbleStyle: 'shadow',
             chatMessageSpacing: 'compact',
             chatInputStyle: 'discord',
@@ -85,7 +89,7 @@ const presets: Array<{ name: string; desc: string; config: Partial<OSTheme> }> =
     },
     {
         name: 'iMessage',
-        desc: '更圆更透',
+        desc: '更圆润、更轻的气质',
         config: {
             chatChromeStyle: 'soft',
             chatBackgroundStyle: 'mesh',
@@ -95,6 +99,7 @@ const presets: Array<{ name: string; desc: string; config: Partial<OSTheme> }> =
             chatStatusStyle: 'subtle',
             chatAvatarShape: 'circle',
             chatAvatarSize: 'large',
+            chatAvatarMode: 'grouped',
             chatBubbleStyle: 'ios',
             chatMessageSpacing: 'spacious',
             chatInputStyle: 'ios',
@@ -104,7 +109,7 @@ const presets: Array<{ name: string; desc: string; config: Partial<OSTheme> }> =
     },
     {
         name: '像素终端',
-        desc: '伪窗口风',
+        desc: '伪窗口风格的聊天壳',
         config: {
             chatChromeStyle: 'pixel',
             chatBackgroundStyle: 'grid',
@@ -114,6 +119,7 @@ const presets: Array<{ name: string; desc: string; config: Partial<OSTheme> }> =
             chatStatusStyle: 'pill',
             chatAvatarShape: 'square',
             chatAvatarSize: 'small',
+            chatAvatarMode: 'grouped',
             chatBubbleStyle: 'outline',
             chatMessageSpacing: 'compact',
             chatInputStyle: 'pixel',
@@ -126,6 +132,7 @@ const presets: Array<{ name: string; desc: string; config: Partial<OSTheme> }> =
 const defaults = {
     chatAvatarShape: 'circle',
     chatAvatarSize: 'medium',
+    chatAvatarMode: 'grouped',
     chatBubbleStyle: 'modern',
     chatMessageSpacing: 'default',
     chatShowTimestamp: 'hover',
@@ -143,10 +150,10 @@ const groupClass = 'rounded-3xl border border-slate-100 bg-white p-5 shadow-sm';
 
 const choices = {
     chrome: [
-        { value: 'soft', label: '柔雾', desc: '白雾玻璃感' },
-        { value: 'flat', label: '平面', desc: '少阴影' },
-        { value: 'floating', label: '悬浮', desc: '层次更强' },
-        { value: 'pixel', label: '像素', desc: '硬边窗口' },
+        { value: 'soft', label: '柔雾', desc: '轻薄玻璃感' },
+        { value: 'flat', label: '平面', desc: '更干净利落' },
+        { value: 'floating', label: '悬浮', desc: '层次更明显' },
+        { value: 'pixel', label: '像素', desc: '硬边伪窗口' },
     ],
     background: [
         { value: 'plain', label: '纯净' },
@@ -210,6 +217,10 @@ const choices = {
         { value: 'medium', label: '中' },
         { value: 'large', label: '大' },
     ],
+    avatarMode: [
+        { value: 'grouped', label: '连续共用', desc: '一串消息只露一次头像' },
+        { value: 'every_message', label: '每条都显示', desc: '每条消息都带头像' },
+    ],
     spacing: [
         { value: 'compact', label: '紧凑' },
         { value: 'default', label: '默认' },
@@ -268,7 +279,10 @@ const backgroundStyleForPreview = (style: string, chrome: string): React.CSSProp
 };
 
 const previewBubbleStyle = (bubble: string, isUser: boolean, theme: OSTheme): React.CSSProperties => {
-    const primary = `hsl(${theme.hue}, ${theme.saturation}%, ${theme.lightness}%)`;
+    const hue = theme.hue ?? 216;
+    const saturation = theme.saturation ?? 88;
+    const lightness = theme.lightness ?? 57;
+    const primary = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
     const base: React.CSSProperties = {
         background: isUser ? primary : '#ffffff',
         color: isUser ? '#ffffff' : '#334155',
@@ -306,6 +320,7 @@ const ChoiceGroup: React.FC<{
 export const ChatAppearanceEditor: React.FC<Props> = ({ theme, updateTheme }) => {
     const avatarShape = theme.chatAvatarShape || defaults.chatAvatarShape;
     const avatarSize = theme.chatAvatarSize || defaults.chatAvatarSize;
+    const avatarMode = theme.chatAvatarMode || defaults.chatAvatarMode;
     const bubbleStyle = theme.chatBubbleStyle || defaults.chatBubbleStyle;
     const messageSpacing = theme.chatMessageSpacing || defaults.chatMessageSpacing;
     const showTimestamp = theme.chatShowTimestamp || defaults.chatShowTimestamp;
@@ -336,13 +351,19 @@ export const ChatAppearanceEditor: React.FC<Props> = ({ theme, updateTheme }) =>
     const headerTextClass = headerStyle === 'discord' ? 'text-white' : headerStyle === 'pixel' ? 'text-[#fff7ed]' : 'text-slate-700';
     const previewGap = messageSpacing === 'compact' ? 'gap-1.5' : messageSpacing === 'spacious' ? 'gap-4' : 'gap-2.5';
     const previewPad = headerDensity === 'compact' ? 'px-4 py-3' : headerDensity === 'airy' ? 'px-5 py-[18px]' : 'px-4 py-3.5';
+    const previewMessages = [
+        { id: 'ai-1', role: 'assistant', text: '今天这套聊天壳已经比之前像样多了。' },
+        { id: 'ai-2', role: 'assistant', text: '现在还能决定头像是连续共用，还是每条都显示。' },
+        { id: 'user-1', role: 'user', text: '对，我想把头像频率也做成可以 DIY 的。' },
+        { id: 'user-2', role: 'user', text: '这样不同软件的味道会更明显。' },
+    ] as const;
 
     return (
         <div className="space-y-5">
             <section className={groupClass}>
                 <div className="mb-3">
                     <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">聊天壳预设</h2>
-                    <p className="mt-1 text-[10px] text-slate-400">这次先把聊天界面做成可换壳，再继续分模块精修。</p>
+                    <p className="mt-1 text-[10px] text-slate-400">先把聊天界面做成可换壳，再继续拆细到更多模块级 DIY。</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {presets.map((preset) => (
@@ -361,7 +382,7 @@ export const ChatAppearanceEditor: React.FC<Props> = ({ theme, updateTheme }) =>
             <section className={groupClass}>
                 <div className="mb-3">
                     <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">实时预览</h2>
-                    <p className="mt-1 text-[10px] text-slate-400">头部、消息区、输入栏都会同步跟着你的选择变化。</p>
+                    <p className="mt-1 text-[10px] text-slate-400">头部、消息区和输入栏都会跟着你的选择同步变化。</p>
                 </div>
                 <div className={`overflow-hidden rounded-[28px] ${shellClass(chromeStyle)}`} style={backgroundStyleForPreview(backgroundStyle, chromeStyle)}>
                     <div className={`${headerClass} ${previewPad}`}>
@@ -385,20 +406,24 @@ export const ChatAppearanceEditor: React.FC<Props> = ({ theme, updateTheme }) =>
                         </div>
                     </div>
                     <div className={`flex min-h-[190px] flex-col p-4 ${previewGap}`}>
-                        <div className="flex items-end gap-2">
-                            <div className={`${avatarClass(avatarShape, avatarSize)} shrink-0 bg-pink-200`} />
-                            <div style={previewBubbleStyle(bubbleStyle, false, theme)}>
-                                今天这套聊天壳已经比之前像样多了。
-                                {showTimestamp === 'always' && <div className="mt-1 text-right text-[8px] opacity-55">14:32</div>}
-                            </div>
-                        </div>
-                        <div className="flex items-end justify-end gap-2">
-                            <div style={previewBubbleStyle(bubbleStyle, true, theme)}>
-                                对，我想把头部、消息区、输入栏都单独 DIY。
-                                {showTimestamp === 'always' && <div className="mt-1 text-right text-[8px] opacity-70">14:33</div>}
-                            </div>
-                            <div className={`${avatarClass(avatarShape, avatarSize)} shrink-0 bg-primary/25`} />
-                        </div>
+                        {previewMessages.map((message, index) => {
+                            const isUser = message.role === 'user';
+                            const nextRole = index < previewMessages.length - 1 ? previewMessages[index + 1].role : null;
+                            const shouldShowAvatar = avatarMode === 'every_message' || nextRole !== message.role;
+                            const avatarTone = isUser ? 'bg-primary/25' : 'bg-pink-200';
+                            return (
+                                <div key={message.id} className={`flex items-end gap-2 ${isUser ? 'justify-end' : ''}`}>
+                                    {!isUser && <div className={`${avatarClass(avatarShape, avatarSize)} shrink-0 ${avatarTone} ${shouldShowAvatar ? '' : 'opacity-0'}`} />}
+                                    <div style={previewBubbleStyle(bubbleStyle, isUser, theme)}>
+                                        {message.text}
+                                        {showTimestamp === 'always' && nextRole !== message.role && (
+                                            <div className={`mt-1 text-right text-[8px] ${isUser ? 'opacity-70' : 'opacity-55'}`}>{isUser ? '14:33' : '14:32'}</div>
+                                        )}
+                                    </div>
+                                    {isUser && <div className={`${avatarClass(avatarShape, avatarSize)} shrink-0 ${avatarTone} ${shouldShowAvatar ? '' : 'opacity-0'}`} />}
+                                </div>
+                            );
+                        })}
                     </div>
                     <div className={`border-t px-3 py-3 ${chromeStyle === 'pixel' ? 'border-[#8f674a] bg-[#eadfce]' : headerStyle === 'discord' ? 'border-white/10 bg-slate-900/90' : 'border-slate-100 bg-white/80'}`}>
                         <div className="flex items-end gap-2">
@@ -443,6 +468,9 @@ export const ChatAppearanceEditor: React.FC<Props> = ({ theme, updateTheme }) =>
                     <ChoiceGroup title="头像尺寸" items={choices.avatarSize} value={avatarSize} onPick={(value) => updateTheme({ chatAvatarSize: value as OSTheme['chatAvatarSize'] })} />
                 </div>
                 <div className="mt-4">
+                    <ChoiceGroup title="头像出现频率" items={choices.avatarMode} value={avatarMode} onPick={(value) => updateTheme({ chatAvatarMode: value as OSTheme['chatAvatarMode'] })} />
+                </div>
+                <div className="mt-4">
                     <ChoiceGroup title="消息密度" items={choices.spacing} value={messageSpacing} onPick={(value) => updateTheme({ chatMessageSpacing: value as OSTheme['chatMessageSpacing'] })} />
                 </div>
                 <div className="mt-4">
@@ -458,7 +486,7 @@ export const ChatAppearanceEditor: React.FC<Props> = ({ theme, updateTheme }) =>
             </section>
 
             <div className="px-2 pb-2 text-center text-[10px] leading-relaxed text-slate-400">
-                这次先把聊天 app 做成模块化换壳。后面如果你想继续狠一点，我们还能拆成“每个角色单独聊天壳”或者“不同 app 模拟不同平台 UI”。
+                这一版先把聊天外观做成模块化换壳。后面如果你想继续往深处玩，我们还可以拆成每个角色单独一套聊天壳，甚至让不同 app 模拟不同平台 UI。
             </div>
         </div>
     );

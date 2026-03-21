@@ -30,3 +30,15 @@ Original prompt: 先继续优化都市人生 simsapp：去掉 pics 里的丑像�
 TODO
 - If local browser testing is possible, verify both `吃瓜 -> 角色剧情` and `吃瓜 -> 主线剧情` paths and inspect attachment modal behavior.
 - Install or provide `playwright` if automated screenshot-based UI validation is needed later.
+
+2026-03-21
+- Added a new global chat appearance setting, [0mchatAvatarMode[0m, so users can choose between grouped avatars and showing an avatar on every message.
+- Rebuilt components/appearance/ChatAppearanceEditor.tsx into a clean modular version and updated the live preview so repeated-message avatar behavior is visible before applying.
+- Wired the new avatar mode into pps/Chat.tsx and components/chat/MessageItem.tsx, including React.memo comparisons so appearance toggles reliably re-render existing messages.
+- 
+pm run build passes after the chat-avatar-frequency changes.
+- Playwright validation is still blocked locally because the skill client cannot resolve the playwright package in this environment (ERR_MODULE_NOT_FOUND).
+
+- Updated chat message grouping in pps/Chat.tsx so consecutive messages now split not only by sender role but also by a 30-minute time gap, preventing early messages from visually merging into much later ones on either side of the conversation.
+- 
+pm run build passes after the time-gap grouping fix.

@@ -202,6 +202,7 @@ interface MessageItemProps {
     // Chat layout customization
     avatarShape?: 'circle' | 'rounded' | 'square';
     avatarSize?: 'small' | 'medium' | 'large';
+    avatarMode?: 'grouped' | 'every_message';
     bubbleVariant?: 'modern' | 'flat' | 'outline' | 'shadow' | 'wechat' | 'ios';
     messageSpacing?: 'compact' | 'default' | 'spacious';
     showTimestamp?: 'always' | 'hover' | 'never';
@@ -228,6 +229,7 @@ const MessageItem = React.memo(({
     onPlayVoice,
     avatarShape = 'circle',
     avatarSize = 'medium',
+    avatarMode = 'grouped',
     bubbleVariant = 'modern',
     messageSpacing = 'default',
     showTimestamp = 'hover',
@@ -239,6 +241,7 @@ const MessageItem = React.memo(({
     const avatarSizeClass = avatarSize === 'small' ? 'w-7 h-7' : avatarSize === 'large' ? 'w-12 h-12' : 'w-9 h-9';
     const avatarRadiusClass = avatarShape === 'square' ? 'rounded-sm' : avatarShape === 'rounded' ? 'rounded-xl' : 'rounded-full';
     const avatarSizePx = avatarSize === 'small' ? 28 : avatarSize === 'large' ? 48 : 36;
+    const shouldShowAvatar = avatarMode === 'every_message' || isLastInGroup;
     const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const startPos = useRef({ x: 0, y: 0 }); // Track touch start position
 
@@ -320,7 +323,7 @@ const MessageItem = React.memo(({
     // Removed mb-5 from here, handled via absolute positioning in parent
     const renderAvatar = (src: string) => (
         <div className={`relative ${avatarSizeClass} z-0`}>
-            {isLastInGroup && (
+            {shouldShowAvatar && (
                 <>
                     <img
                         src={src}
@@ -1273,10 +1276,19 @@ const MessageItem = React.memo(({
            prev.isFirstInGroup === next.isFirstInGroup &&
            prev.isLastInGroup === next.isLastInGroup &&
            prev.activeTheme === next.activeTheme &&
+           prev.charAvatar === next.charAvatar &&
+           prev.charName === next.charName &&
+           prev.userAvatar === next.userAvatar &&
            prev.selectionMode === next.selectionMode &&
            prev.isSelected === next.isSelected &&
            prev.translationEnabled === next.translationEnabled &&
            prev.isShowingTarget === next.isShowingTarget &&
+           prev.avatarShape === next.avatarShape &&
+           prev.avatarSize === next.avatarSize &&
+           prev.avatarMode === next.avatarMode &&
+           prev.bubbleVariant === next.bubbleVariant &&
+           prev.messageSpacing === next.messageSpacing &&
+           prev.showTimestamp === next.showTimestamp &&
            prev.voiceData?.url === next.voiceData?.url &&
            prev.voiceLoading === next.voiceLoading &&
            prev.isVoicePlaying === next.isVoicePlaying;

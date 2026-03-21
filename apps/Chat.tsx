@@ -1134,14 +1134,23 @@ const Chat: React.FC = () => {
                 )}
 
                 {displayMessages.map((m, i) => {
-                    const prevRole = i > 0 ? displayMessages[i - 1].role : null;
-                    const nextRole = i < displayMessages.length - 1 ? displayMessages[i + 1].role : null;
+                    const prevMessage = i > 0 ? displayMessages[i - 1] : null;
+                    const nextMessage = i < displayMessages.length - 1 ? displayMessages[i + 1] : null;
+                    const messageGroupGapMs = 30 * 60 * 1000;
+                    const breaksWithPrevious =
+                        !prevMessage ||
+                        prevMessage.role !== m.role ||
+                        Math.abs(m.timestamp - prevMessage.timestamp) > messageGroupGapMs;
+                    const breaksWithNext =
+                        !nextMessage ||
+                        nextMessage.role !== m.role ||
+                        Math.abs(nextMessage.timestamp - m.timestamp) > messageGroupGapMs;
                     return (
                         <MessageItem
                             key={m.id || i}
                             msg={m}
-                            isFirstInGroup={prevRole !== m.role}
-                            isLastInGroup={nextRole !== m.role}
+                            isFirstInGroup={breaksWithPrevious}
+                            isLastInGroup={breaksWithNext}
                             activeTheme={activeTheme}
                             charAvatar={char.avatar}
                             charName={char.name}
@@ -1159,6 +1168,7 @@ const Chat: React.FC = () => {
                             onPlayVoice={() => handlePlayVoice(m.id)}
                             avatarShape={osTheme.chatAvatarShape}
                             avatarSize={osTheme.chatAvatarSize}
+                            avatarMode={osTheme.chatAvatarMode}
                             bubbleVariant={osTheme.chatBubbleStyle}
                             messageSpacing={osTheme.chatMessageSpacing}
                             showTimestamp={osTheme.chatShowTimestamp}
