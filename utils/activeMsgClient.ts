@@ -74,6 +74,10 @@ export const resolveActiveMsgApiBase = () => {
   return new URL('api/v1/', currentDir).toString().replace(/\/+$/, '');
 };
 
+const detectActiveMsgDbDriver = (databaseUrl: string, fallback: ActiveMsg2GlobalConfig['driver']) => {
+  return /(?:^|[./-])neon\.tech\b/i.test(databaseUrl) ? 'neon' : fallback;
+};
+
 export const sanitizeActiveMsgDatabaseUrl = (value: string) => {
   const trimmed = value.trim();
   if (!trimmed) return '';
@@ -393,6 +397,7 @@ export const ActiveMsgClient = {
   async initTenant(updates: Pick<ActiveMsg2GlobalConfig, 'driver' | 'databaseUrl' | 'initSecret'>) {
     const current = await ensureGlobalReady();
     const databaseUrl = sanitizeActiveMsgDatabaseUrl(updates.databaseUrl);
+    const driver = detectActiveMsgDbDriver(databaseUrl, updates.driver);
     if (!/^postgres(?:ql)?:\/\//i.test(databaseUrl)) {
       throw new Error('Database URL 需要填写原始 PostgreSQL/Neon 连接串，不要带 psql 命令前缀。');
     }
@@ -407,7 +412,7 @@ export const ActiveMsgClient = {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          driver: updates.driver,
+          driver,
           databaseUrl,
         }),
       });
@@ -420,6 +425,7 @@ export const ActiveMsgClient = {
       await ActiveMsgStore.saveGlobalConfig({
         ...current,
         ...updates,
+        driver,
         databaseUrl,
         tenantId: data.tenantId,
         tenantToken: data.tenantToken,
@@ -548,6 +554,9 @@ export const ActiveMsgClient = {
     return response.data as { uuid: string; status: string; nextSendAt?: string };
   },
 };
+
+
+
 
 
 

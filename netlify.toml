@@ -1,4 +1,4 @@
-[build]
+﻿[build]
   functions = "netlify/functions"
   publish = "dist"
 
@@ -39,3 +39,9 @@
   from = "/api/v1/send-notifications"
   to = "/.netlify/functions/send-notifications"
   status = 200
+
+[[headers]]
+  for = "/assets/*"
+
+  [headers.values]
+    Service-Worker-Allowed = "/"

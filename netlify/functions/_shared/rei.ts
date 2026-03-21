@@ -15,6 +15,7 @@ const ACTIVE_MSG_CORS_ALLOWED_HEADERS = [
   'X-Init-Secret',
   'X-User-Id',
   'X-Response-Encrypted',
+  'X-Payload-Encrypted',
   'X-Encryption-Version',
 ].join(', ');
 const reiServerCache = new Map<string, Promise<ReiServer>>();
@@ -141,4 +142,6 @@ export const buildBackgroundFunctionUrl = (req: Request, search = '') => {
   url.search = search;
   return url.toString();
 };
+
+
 
