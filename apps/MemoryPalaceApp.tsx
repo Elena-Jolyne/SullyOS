@@ -588,49 +588,6 @@ export default function MemoryPalaceApp() {
         // 依赖用原始字符串字段，避免 memoryPalaceConfig 对象每次新引用都重跑
     }, [char?.id, (char as any)?.personalityStyle, view, lightLLMBaseUrl, lightLLMApiKey]);
 
-    // 🛟 静默抢救：历史上因为 max_tokens=300 导致 LLM 失败，角色被留在"情感型 0.3"的兜底值。
-    // 用户打开这种角色时，后台偷偷重跑一次真正的人格检测并直接 updateCharacter，不弹窗。
-    // 每个角色只抢救一次（rescuedKey），避免用户真心选了情感型 0.3 时被反复覆盖。
-    useEffect(() => {
-        if (!char) return;
-        if (view !== 'palace') return;
-        if (!lightLLMBaseUrl || !lightLLMApiKey) return;
-
-        const style = (char as any).personalityStyle;
-        const rumination = (char as any).ruminationTendency;
-        // 只针对"明确被写成 emotional + 0.3"的可疑兜底状态；style 为 undefined 的走上面那个首检流程
-        if (style !== 'emotional') return;
-        if (rumination !== 0.3) return;
-
-        const rescuedKey = `mp_personality_rescued_v1_${char.id}`;
-        if (localStorage.getItem(rescuedKey)) return;
-
-        let cancelled = false;
-        const detectingCharId = char.id;
-        const detectingCharName = char.name;
-        const persona = [char.systemPrompt || '', char.worldview || ''].filter(Boolean).join('\n');
-
-        console.log(`🛟 [PersonalityRescue] ${detectingCharName} 当前是"情感型 0.3"默认值，后台静默重新检测...`);
-        detectPersonalityStyle(detectingCharId, detectingCharName, persona, memoryPalaceConfig.lightLLM)
-            .then(result => {
-                if (cancelled) return;
-                try { localStorage.setItem(rescuedKey, '1'); } catch {}
-                const styleLabel = result.style === 'emotional' ? '情感型' : result.style === 'narrative' ? '叙事型' : result.style === 'imagery' ? '意象型' : '分析型';
-                console.log(`🛟 [PersonalityRescue] ${detectingCharName} 抢救完成 → ${styleLabel}，反刍倾向 ${result.ruminationTendency}（${result.reasoning}）`);
-                updateCharacter(detectingCharId, {
-                    personalityStyle: result.style,
-                    ruminationTendency: result.ruminationTendency,
-                } as any);
-            })
-            .catch(e => {
-                if (cancelled) return;
-                // 抢救失败不设 rescuedKey —— 下次打开再试一次，给副 API 恢复的机会
-                console.warn(`🛟 [PersonalityRescue] ${detectingCharName} 抢救失败（保留原值，下次再试）:`, e?.message || e);
-            });
-
-        return () => { cancelled = true; };
-    }, [char?.id, (char as any)?.personalityStyle, (char as any)?.ruminationTendency, view, lightLLMBaseUrl, lightLLMApiKey]);
-
     // 判断是否已配置（使用全局配置）
     const hasEmbeddingConfig = !!(memoryPalaceConfig.embedding.baseUrl && memoryPalaceConfig.embedding.apiKey);
     const hasLightApi = !!(memoryPalaceConfig.lightLLM.baseUrl && memoryPalaceConfig.lightLLM.apiKey);
