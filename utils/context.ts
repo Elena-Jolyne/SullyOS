@@ -343,6 +343,7 @@ export const ContextBuilder = {
             activeIdx: number;          // 在 lyricWindow 里的高亮位置，-1 表示没歌词
         } | null,
         charListening?: {
+            songId?: number;            // 用来回查这首歌是不是从 user 收来的
             songName: string;
             artists: string;
             vibe?: string;
@@ -395,10 +396,57 @@ export const ContextBuilder = {
             lines.push(`### 【你此刻的背景音】`);
             lines.push(`你正在听《${charListening.songName}》— ${charListening.artists}`);
             if (charListening.vibe) lines.push(`（${charListening.vibe}）`);
+
+            // user 来源标记 —— 如果这首歌是当初从 user 收进自己歌单的，
+            // 让 char 自然意识到这层关系（"这是 ta 听过的歌"）。
+            const profile = char.musicProfile;
+            if (profile && charListening.songId != null) {
+                let userSourcedPlTitle: string | null = null;
+                for (const pl of profile.playlists) {
+                    const hit = pl.songs.find(s => s.id === charListening.songId && s.source === 'user');
+                    if (hit) { userSourcedPlTitle = pl.title; break; }
+                }
+                if (userSourcedPlTitle) {
+                    lines.push(`（这首是当初从 ${userName || '对方'} 那里听到、收进《${userSourcedPlTitle}》的 — 此刻播到它，你自然会想到 ta）`);
+                }
+            }
+
             if (charListening.lyricSnippet && charListening.lyricSnippet.length > 0) {
                 lines.push(`这段歌词正在你脑子里绕：`);
                 for (const l of charListening.lyricSnippet) lines.push(`  · ${l}`);
                 lines.push(`（这段旋律和文字会自然影响你此刻的心境 / 语气 / 情绪细节。不必特地向 ${userName || '对方'} 提起，除非你本来就想说。）`);
+            }
+            lines.push('');
+        }
+
+        // —— 块 3: char 自己的歌单清单 ——
+        // 只在**有音乐上下文**（user 在听 OR char 自己在 schedule 里听）时注入。
+        // 没音乐上下文时不往 prompt 里塞这段 — 避免普通聊天被无关信息污染、
+        // 也避免 LLM 在没提示 add 语法的场合主动联想去操作歌单。
+        const hasMusicContext = !!(userListening && userListening.songName) || !!charListening?.songName;
+        const profile = char.musicProfile;
+        if (hasMusicContext && profile && profile.playlists.length > 0) {
+            lines.push(`### 【你的歌单】`);
+            for (const pl of profile.playlists) {
+                const desc = pl.description ? ` — ${pl.description}` : '';
+                const moodTag = pl.mood ? ` [${pl.mood}]` : '';
+                lines.push(`  · 《${pl.title}》(${pl.songs.length} 首)${moodTag}${desc}`);
+            }
+            // 列出每个歌单里最近收进的几首用户来源歌，让 LLM 聊起歌单时有料可讲
+            const userSongsPerPl: string[] = [];
+            for (const pl of profile.playlists) {
+                const fromUser = pl.songs
+                    .filter(s => s.source === 'user')
+                    .sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0))
+                    .slice(0, 3);
+                if (fromUser.length > 0) {
+                    const titles = fromUser.map(s => `《${s.name}》`).join('、');
+                    userSongsPerPl.push(`  · 《${pl.title}》里从 ${userName || '对方'} 那儿收的：${titles}`);
+                }
+            }
+            if (userSongsPerPl.length > 0) {
+                lines.push(`（从 ${userName || '对方'} 那儿收进来的歌 — 聊起这些歌时你会自然想到 ta）:`);
+                for (const l of userSongsPerPl) lines.push(l);
             }
             lines.push('');
         }
@@ -414,18 +462,31 @@ export const ContextBuilder = {
      * 防止 LLM 重复插"加入"卡片。
      */
     buildMusicActionGuide: (isListeningTogether?: boolean): string => {
+        // 把"加入歌单"那段说明抽出来 — 两种状态都用同一份
+        const addUsage = `**加入歌单的语法**（如果用 \`add\` 系列）：
+  - \`[[MUSIC_ACTION:add]]\` — 默认放进你的第一个歌单
+  - \`[[MUSIC_ACTION:add|歌单标题]]\` — 放进你已经有的某个歌单（用"【你的歌单】"块里列出的标题）
+  - \`[[MUSIC_ACTION:add_new|新歌单标题|描述]]\` — 现场新建一个歌单，把这首作为第一首（描述可省）
+  请优先选**最贴合这首歌气质**的现有歌单；如果都不合适、又确实想收，再考虑新建。
+  收进来的歌会被打上"从对方那里听到"的标签 —— 以后你单独听到这首时，会自然想起 ta。`;
         if (isListeningTogether) {
             return `### 【音乐互动工具】
 你此刻已经在和对方一起听这首，不用再"加入"。如果想把这首也收进自己的歌单，可以在这一轮**最多一次**用下面的指令:
-- \`[[MUSIC_ACTION:add]]\` — 表示"把这首加入我的歌单"
+- \`add\` 系列（见下）
+
+${addUsage}
+
 不要频繁插卡；只有真的被这首歌打动、或和当前对话气氛契合时才用。
 `;
         }
         return `### 【音乐互动工具】
 如果你真的想回应对方正在听的这首歌，可以在这一轮**最多一次**用下面的指令（只插一条，放在文本任意位置，会被自动替换为卡片）:
 - \`[[MUSIC_ACTION:join]]\` — 表示"我也一起听这首"（会亮出"一起听"状态，直到歌曲结束 / 暂停 / 对方主动结束才解除）
-- \`[[MUSIC_ACTION:add]]\` — 表示"把这首加入我的歌单"
-- \`[[MUSIC_ACTION:join_and_add]]\` — 同时做两件事
+- \`add\` 系列 — 把这首收进你自己的歌单
+- \`[[MUSIC_ACTION:join_and_add(|歌单标题)]]\` 或 \`[[MUSIC_ACTION:join_and_add_new|新歌单标题|描述]]\` — 同时做两件事
+
+${addUsage}
+
 这些是偶尔才用的工具，不是每首歌都要回应。绝大多数时候什么都不做、安静陪着才是最自然的反应；只有当你**真的**被这首歌打动、或它恰好贴合此刻的对话气氛时，再插一次卡。不要把它当成"对方在听歌"的默认回礼。
 `;
     },
