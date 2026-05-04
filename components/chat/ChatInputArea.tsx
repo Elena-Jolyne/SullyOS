@@ -66,8 +66,10 @@ const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [actionsPage, setActionsPage] = useState<0 | 1>(0);
     const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const startPos = useRef({ x: 0, y: 0 }); 
+    const startPos = useRef({ x: 0, y: 0 });
     const isLongPressTriggered = useRef(false); // Track if long press action fired
+    const actionsSwipeStart = useRef<{ x: number; y: number } | null>(null);
+    const actionsSwipeMoved = useRef(false);
     const useIOSStandaloneInputFix = isIOSStandaloneWebApp();
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -145,6 +147,45 @@ const ChatInputArea: React.FC<ChatInputAreaProps> = ({
     const handleTouchEnd = () => {
         clearTimer();
     };
+
+    // --- Actions Panel Swipe (left/right page switch) ---
+    const handleActionsSwipeStart = (e: React.TouchEvent) => {
+        const t = e.touches[0];
+        actionsSwipeStart.current = { x: t.clientX, y: t.clientY };
+        actionsSwipeMoved.current = false;
+    };
+
+    const handleActionsSwipeMove = (e: React.TouchEvent) => {
+        if (!actionsSwipeStart.current) return;
+        const t = e.touches[0];
+        const dx = t.clientX - actionsSwipeStart.current.x;
+        const dy = t.clientY - actionsSwipeStart.current.y;
+        if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+            actionsSwipeMoved.current = true;
+        }
+    };
+
+    const handleActionsSwipeEnd = (e: React.TouchEvent) => {
+        if (!actionsSwipeStart.current) return;
+        const t = e.changedTouches[0];
+        const dx = t.clientX - actionsSwipeStart.current.x;
+        const dy = t.clientY - actionsSwipeStart.current.y;
+        actionsSwipeStart.current = null;
+        const SWIPE_THRESHOLD = 40;
+        if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+            if (dx < 0 && actionsPage === 0) setActionsPage(1);
+            else if (dx > 0 && actionsPage === 1) setActionsPage(0);
+        }
+    };
+
+    const handleActionsClickCapture = (e: React.MouseEvent) => {
+        if (actionsSwipeMoved.current) {
+            e.stopPropagation();
+            e.preventDefault();
+            actionsSwipeMoved.current = false;
+        }
+    };
+
 
     // Wrapper for Click to prevent conflicts
     const handleItemClick = (e: React.MouseEvent, item: any, type: 'emoji' | 'category') => {
@@ -392,7 +433,13 @@ const ChatInputArea: React.FC<ChatInputAreaProps> = ({
 
                     {/* Actions Panel (paginated: page 0 = 内置功能, page 1 = 外部服务) */}
                     {showPanel === 'actions' && (
-                        <div className="overflow-y-auto">
+                        <div
+                            className="overflow-y-auto"
+                            onTouchStart={handleActionsSwipeStart}
+                            onTouchMove={handleActionsSwipeMove}
+                            onTouchEnd={handleActionsSwipeEnd}
+                            onClickCapture={handleActionsClickCapture}
+                        >
                           <div className={`p-6 grid grid-cols-4 gap-8 ${actionsPage === 0 ? '' : 'hidden'}`}>
                             <button onClick={() => onPanelAction('transfer')} className={`flex flex-col items-center gap-2 active:scale-95 transition-transform ${isDiscordStyle ? 'text-slate-200' : 'text-slate-600'}`}>
                                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm border ${isDiscordStyle ? 'bg-slate-800 text-orange-300 border-orange-400/20' : 'bg-orange-50 text-orange-400 border-orange-100'}`}>
