@@ -92,11 +92,36 @@ interface SubscriptionInfo {
   auth: string;
 }
 
+/**
+ * True if a subscription's endpoint is a Chrome-internal "permanently
+ * removed" sentinel.  Browsers occasionally revoke subscriptions due to
+ * long inactivity, abuse signals, or the site being visited too rarely;
+ * `getSubscription()` then returns an object whose endpoint URL is
+ * `https://permanently-removed.invalid/...`.  `.invalid` is an RFC 2606
+ * reserved TLD that never resolves, so any push send would fail with a
+ * generic upstream error (which Cloudflare Workers wraps as HTTP 530).
+ *
+ * Detect this and treat the subscription as dead — unsubscribe + re-create.
+ */
+export function isDeadSubscriptionEndpoint(endpoint: string | null | undefined): boolean {
+  if (!endpoint) return false;
+  return endpoint.includes('permanently-removed.invalid');
+}
+
 export async function getOrCreateSubscription(vapidPublicKey: string): Promise<SubscriptionInfo | null> {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
 
   const reg = await navigator.serviceWorker.ready;
   let sub = await reg.pushManager.getSubscription();
+
+  if (sub) {
+    // Drop the existing sub if it's been zombified by the browser
+    // (`permanently-removed.invalid` endpoint) — those can never deliver.
+    if (isDeadSubscriptionEndpoint(sub.endpoint)) {
+      try { await sub.unsubscribe(); } catch { /* ignore */ }
+      sub = null;
+    }
+  }
 
   if (sub) {
     // If an old subscription exists with a different VAPID key, we'd get
@@ -128,6 +153,14 @@ export async function getOrCreateSubscription(vapidPublicKey: string): Promise<S
       console.warn('[ProactivePush] pushManager.subscribe failed', e);
       return null;
     }
+  }
+
+  // Final paranoia: subscribe() in some Chrome versions can also return a
+  // dead sentinel.  Fail loudly rather than ship a useless endpoint to D1.
+  if (isDeadSubscriptionEndpoint(sub.endpoint)) {
+    console.warn('[ProactivePush] subscribe() returned a dead sentinel endpoint; giving up');
+    try { await sub.unsubscribe(); } catch { /* ignore */ }
+    return null;
   }
 
   const p256dh = bytesToB64u(sub.getKey('p256dh'));
@@ -322,13 +355,23 @@ export async function ensureSubscribed(): Promise<SubscribeResult> {
 }
 
 /** Ask the Worker to fire a one-shot test push at this device's endpoint. */
-export async function sendTestPush(): Promise<{ ok: boolean; status?: number; reason?: string }> {
+export async function sendTestPush(): Promise<{ ok: boolean; status?: number; reason?: string; deadSubscription?: boolean }> {
   const cfg = loadPushConfig();
   if (!cfg.workerUrl.startsWith('https://')) return { ok: false, reason: 'Worker URL 未配置' };
 
   const reg = await navigator.serviceWorker?.ready?.catch(() => null);
   const sub = reg ? await reg.pushManager.getSubscription() : null;
   if (!sub) return { ok: false, reason: '本设备没有现有订阅，请先点"开启系统通知"' };
+
+  // Browser-side zombie-endpoint guard — bail before bothering the Worker.
+  // Otherwise Worker will fetch permanently-removed.invalid → 530 from CF.
+  if (isDeadSubscriptionEndpoint(sub.endpoint)) {
+    return {
+      ok: false,
+      deadSubscription: true,
+      reason: '订阅已被浏览器吊销（permanently-removed.invalid），点"重置订阅"重建一次',
+    };
+  }
 
   try {
     const res = await fetch(`${cfg.workerUrl}/test`, {
@@ -345,6 +388,47 @@ export async function sendTestPush(): Promise<{ ok: boolean; status?: number; re
   }
 }
 
+/**
+ * Tear the local subscription down and rebuild it from scratch.  Used by the
+ * diagnostic panel's "重置订阅" button to recover from
+ * `permanently-removed.invalid` zombies, scope changes, or a stuck VAPID-key
+ * mismatch.  Also tells the Worker to forget the dead row so /test won't
+ * keep finding it.
+ */
+export async function resetSubscription(): Promise<{ ok: boolean; reason?: string; endpoint?: string }> {
+  const cfg = loadPushConfig();
+  if (!cfg.workerUrl.startsWith('https://') || cfg.vapidPublicKey.length < 80) {
+    return { ok: false, reason: '推送加速器未配置' };
+  }
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return { ok: false, reason: '当前浏览器不支持 Service Worker 或 Push API' };
+  }
+
+  const reg = await navigator.serviceWorker?.ready?.catch(() => null);
+  const oldSub = reg ? await reg.pushManager.getSubscription() : null;
+  const oldEndpoint = oldSub?.endpoint;
+
+  // Tell Worker to drop the row first so /test won't keep returning the
+  // dead endpoint.  Best-effort — failures here are non-fatal.
+  if (oldEndpoint) {
+    try {
+      await fetch(`${cfg.workerUrl}/unsubscribe`, {
+        method: 'POST',
+        headers: buildHeaders(cfg),
+        body: JSON.stringify({ endpoint: oldEndpoint }),
+      });
+    } catch { /* ignore */ }
+  }
+
+  if (oldSub) {
+    try { await oldSub.unsubscribe(); } catch { /* ignore */ }
+  }
+
+  // ensureSubscribed will re-create from clean slate (permission, fresh
+  // PushSubscription, fresh D1 row).
+  return ensureSubscribed();
+}
+
 // ---------- Diagnostic info ----------
 
 export interface PushDiagnostics {
@@ -358,6 +442,8 @@ export interface PushDiagnostics {
   swState: string;
   /** Current Push subscription endpoint, or null */
   endpoint: string | null;
+  /** True if endpoint is a `permanently-removed.invalid` zombie sentinel */
+  endpointDead: boolean;
   /** Friendly name of the push channel (FCM/Mozilla/Windows/Apple/...) */
   channel: string;
   /** True if the deployment constants are in place */
@@ -433,6 +519,7 @@ export async function getPushDiagnostics(): Promise<PushDiagnostics> {
     swScope,
     swState,
     endpoint,
+    endpointDead: isDeadSubscriptionEndpoint(endpoint),
     channel: detectChannelFromEndpoint(endpoint),
     workerConfigured: cfg.workerUrl.startsWith('https://') && cfg.vapidPublicKey.length > 80,
     enabled: cfg.enabled,
