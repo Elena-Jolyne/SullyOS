@@ -124,10 +124,10 @@ function explainSubscribeError(e: any): string {
     return '浏览器拒绝创建订阅（NotAllowedError）——通常是站点权限被拦截或处于隐身模式';
   }
   if (name === 'NotSupportedError') {
-    return '当前浏览器不支持 Web Push（NotSupportedError）——大概率是没有 Google Play Services 的安卓设备 / 国产精简浏览器';
+    return '当前浏览器不支持网页推送——常见于没装谷歌服务的国行安卓手机（小米/华为/OPPO/vivo 大多默认就没有），或者手机自带的精简浏览器。换 Chrome / Edge / Firefox 桌面版试试';
   }
   if (name === 'AbortError' || /push service|FCM|network/i.test(msg)) {
-    return `连不上推送服务（${name || 'AbortError'}：${msg}）——多见于无 Google 服务的安卓机、被防火墙挡住 FCM、或浏览器内置推送通道被裁剪。换 Chrome / Edge / Firefox 桌面版试试，或翻到能访问 fcm.googleapis.com 的网络`;
+    return '连不上推送服务器——这台设备的网页推送链路走不通。最常见两种情况：1) 国行安卓手机没装谷歌服务（小米/华为/OPPO/vivo 默认就没有），系统层面就推不了；2) 当前网络挡住了谷歌的推送服务器。建议：换台装了谷歌服务的设备，或者用电脑上的 Chrome / Edge / Firefox 试试';
   }
   if (name === 'InvalidStateError') {
     return '订阅状态冲突（InvalidStateError）——可能旧订阅没清干净，再点一次"重置订阅"';
