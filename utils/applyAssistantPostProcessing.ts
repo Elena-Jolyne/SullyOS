@@ -29,6 +29,7 @@ import { CharacterProfile, UserProfile, Message, Emoji, RealtimeConfig } from '.
 import { DB } from './db';
 import { ChatParser } from './chatParser';
 import { NotionManager, FeishuManager, XhsNote } from './realtimeContext';
+import { enqueuePendingDiary, removePendingDiary } from './pendingDiary';
 import { XhsMcpClient } from './xhsMcpClient';
 import { safeFetchJson } from './safeApi';
 import { extractHtmlBlocks } from './htmlPrompt';
@@ -532,28 +533,42 @@ export async function applyAssistantPostProcessing(
             title = `${char.name}的日记 - ${now.getMonth() + 1}/${now.getDate()}`;
         }
 
-        try {
-            const result = await NotionManager.createDiaryPage(
-                realtimeConfig.notionApiKey,
-                realtimeConfig.notionDatabaseId,
-                { title, content, mood: mood || undefined, characterName: char.name }
-            );
+        // 预写日志: 发请求前先把内容落进待写队列 (localStorage 同步落盘), 这样即使后续 fetch 失败 /
+        // app 被杀, 内容也不丢. 前台可见才立即写 (本地路径 + 前台 instant, fetch 可靠); 后台时不发
+        // 这个脆弱的请求 (易被冻结打断, 甚至服务端写成功但响应丢失 → 回前台重试会重复写), 直接留在
+        // 队列, 等 drainPendingDiaries 在回前台时补打. 写成功就删掉这条.
+        const pendingDiaryId = enqueuePendingDiary({ kind: 'notion', charId: char.id, charName: char.name, title, content, mood: mood || undefined });
+        const canWriteDiaryNow = typeof document === 'undefined' || document.visibilityState === 'visible';
+        if (canWriteDiaryNow) {
+            try {
+                const result = await NotionManager.createDiaryPage(
+                    realtimeConfig.notionApiKey,
+                    realtimeConfig.notionDatabaseId,
+                    { title, content, mood: mood || undefined, characterName: char.name }
+                );
 
-            if (result.success) {
-                console.log('📔 [Diary] 写入成功:', result.url);
-                await DB.saveMessage({
-                    charId: char.id,
-                    role: 'system',
-                    type: 'text',
-                    content: `📔 ${char.name}写了一篇日记「${title}」`
-                });
-                addToast(`📔 ${char.name}写了一篇日记!`, 'success');
-            } else {
-                console.error('📔 [Diary] 写入失败:', result.message);
-                addToast(`日记写入失败: ${result.message}`, 'error');
+                if (result.success) {
+                    removePendingDiary(pendingDiaryId);
+                    console.log('📔 [Diary] 写入成功:', result.url);
+                    await DB.saveMessage({
+                        charId: char.id,
+                        role: 'system',
+                        type: 'text',
+                        content: `📔 ${char.name}写了一篇日记「${title}」`
+                    });
+                    addToast(`📔 ${char.name}写了一篇日记!`, 'success');
+                } else {
+                    // API 明确拒绝 (配置/权限问题, 重试也没用) → 丢弃 + 报错.
+                    removePendingDiary(pendingDiaryId);
+                    console.error('📔 [Diary] 写入失败:', result.message);
+                    addToast(`日记写入失败: ${result.message}`, 'error');
+                }
+            } catch (e) {
+                // 网络异常 (可恢复). 保留待写队列, 回前台 drainPendingDiaries 补打.
+                console.error('📔 [Diary] 写入异常, 留待回前台重试:', e);
             }
-        } catch (e) {
-            console.error('📔 [Diary] 写入异常:', e);
+        } else {
+            console.log('📔 [Diary] 当前后台, 已入队待写, 回前台补打');
         }
 
         aiContent = aiContent.replace(diaryMatch[0], '').trim();
@@ -714,30 +729,40 @@ export async function applyAssistantPostProcessing(
             fsTitle = `${char.name}的日记 - ${now.getMonth() + 1}/${now.getDate()}`;
         }
 
-        try {
-            const result = await FeishuManager.createDiaryRecord(
-                realtimeConfig.feishuAppId,
-                realtimeConfig.feishuAppSecret,
-                realtimeConfig.feishuBaseId,
-                realtimeConfig.feishuTableId,
-                { title: fsTitle, content: fsContent, mood: fsMood || undefined, characterName: char.name }
-            );
+        // 预写日志 + 可见性判断, 同 Notion.
+        const pendingFsDiaryId = enqueuePendingDiary({ kind: 'feishu', charId: char.id, charName: char.name, title: fsTitle, content: fsContent, mood: fsMood || undefined });
+        const canWriteFsDiaryNow = typeof document === 'undefined' || document.visibilityState === 'visible';
+        if (canWriteFsDiaryNow) {
+            try {
+                const result = await FeishuManager.createDiaryRecord(
+                    realtimeConfig.feishuAppId,
+                    realtimeConfig.feishuAppSecret,
+                    realtimeConfig.feishuBaseId,
+                    realtimeConfig.feishuTableId,
+                    { title: fsTitle, content: fsContent, mood: fsMood || undefined, characterName: char.name }
+                );
 
-            if (result.success) {
-                console.log('📒 [Feishu] 写入成功:', result.recordId);
-                await DB.saveMessage({
-                    charId: char.id,
-                    role: 'system',
-                    type: 'text',
-                    content: `📒 ${char.name}写了一篇日记「${fsTitle}」(飞书)`
-                });
-                addToast(`📒 ${char.name}写了一篇日记! (飞书)`, 'success');
-            } else {
-                console.error('📒 [Feishu] 写入失败:', result.message);
-                addToast(`飞书日记写入失败: ${result.message}`, 'error');
+                if (result.success) {
+                    removePendingDiary(pendingFsDiaryId);
+                    console.log('📒 [Feishu] 写入成功:', result.recordId);
+                    await DB.saveMessage({
+                        charId: char.id,
+                        role: 'system',
+                        type: 'text',
+                        content: `📒 ${char.name}写了一篇日记「${fsTitle}」(飞书)`
+                    });
+                    addToast(`📒 ${char.name}写了一篇日记! (飞书)`, 'success');
+                } else {
+                    removePendingDiary(pendingFsDiaryId);
+                    console.error('📒 [Feishu] 写入失败:', result.message);
+                    addToast(`飞书日记写入失败: ${result.message}`, 'error');
+                }
+            } catch (e) {
+                // 网络异常: 保留待写队列, 回前台 drainPendingDiaries 补打.
+                console.error('📒 [Feishu] 写入异常, 留待回前台重试:', e);
             }
-        } catch (e) {
-            console.error('📒 [Feishu] 写入异常:', e);
+        } else {
+            console.log('📒 [Feishu] 当前后台, 已入队待写, 回前台补打');
         }
 
         aiContent = aiContent.replace(fsDiaryMatch[0], '').trim();
