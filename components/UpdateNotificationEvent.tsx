@@ -72,7 +72,7 @@ export const UpdateNotificationPopup: React.FC<UpdateNotificationPopupProps> = (
                             这次新增：连角色的<strong>「情绪 / 状态」</strong>也搬到了云端。所以现在<strong>聊天回复</strong>和<strong>情绪 buff</strong> 都不用再在前端等生成了，发完即走。
                         </p>
                         <p className="text-[12px] text-slate-500 leading-relaxed mt-2">
-                            用之前要先配一次 Instant Push（<strong>设置 → Instant Push</strong>）。这次更新说明里<strong>附了配置视频</strong>，跟着点就行；另外记得<strong>允许通知权限</strong>，不然回复推不回来。
+                            <strong className="text-rose-600">上个版本配过 Instant Push 的同学：这次自动生效，不用重新配。</strong>第一次用的话，先到<strong>设置 → Instant Push</strong> 配一次，更新说明里附了配置视频；记得<strong>允许通知权限</strong>，不然回复推不回来。
                         </p>
                     </div>
                     <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3">
