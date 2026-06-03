@@ -744,10 +744,12 @@ export interface VRLetter {
     charId?: string;            // 写这封信/回信的角色
 
     // outbox
-    status?: 'queued' | 'sent' | 'archived';  // 待寄出 / 已寄出 / 收到回复并留档
+    status?: 'queued' | 'sent' | 'archived' | 'sealed';  // 待寄出 / 已寄出 / 收到回复留档 / 角色已读并封存
     remoteId?: string;          // 寄出后服务端分配的远端 id
     sentAt?: number;
     repliesReceived?: VRLetterReply[];
+    /** 原作者角色读过回信后的感触（写完即封存，使命完成） */
+    reaction?: { content: string; createdAt: number };
 
     // inbox
     remoteLetterId?: string;    // 远端信 id（回信时用）

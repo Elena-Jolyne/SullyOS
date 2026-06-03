@@ -595,7 +595,7 @@ const PostOfficePanel: React.FC<{ addToast?: (m: string, t?: any) => void }> = (
     const replyQueued = letters.filter(l => l.box === 'inbox' && l.replyStatus === 'queued' && l.reply);
     const inboxWaiting = letters.filter(l => l.box === 'inbox' && (l.replyStatus ?? 'none') === 'none');
     const sentAwaiting = letters.filter(l => l.box === 'outbox' && l.status === 'sent');
-    const archived = letters.filter(l => l.box === 'outbox' && l.status === 'archived');
+    const archived = letters.filter(l => l.box === 'outbox' && (l.status === 'archived' || l.status === 'sealed'));
 
     const sendOutbox = async () => {
         if (outQueued.length === 0) return; setBusy('send');
@@ -675,7 +675,7 @@ const PostOfficePanel: React.FC<{ addToast?: (m: string, t?: any) => void }> = (
             <div className="flex-1 overflow-y-auto vr-reader-scroll px-3 py-2.5">
                 {/* 待寄出 */}
                 <Section title="待寄出" count={outQueued.length}>
-                    {outQueued.length === 0 ? <p className="text-[10.5px] text-white/35">角色在邮局写的漂流信会排在这里，你确认后一键寄出。</p> : (
+                    {outQueued.length === 0 ? <p className="text-[10.5px] text-white/35">角色在邮局写的漂流信会排在这里，你确认后一键寄出。寄出时笔名会自动匿名。</p> : (
                         <>
                             {outQueued.map(l => (
                                 <div key={l.id} className="rounded-lg p-2 mb-1.5 text-[11.5px] text-amber-50/90" style={{ background: 'rgba(255,255,255,.05)' }}>
@@ -726,10 +726,17 @@ const PostOfficePanel: React.FC<{ addToast?: (m: string, t?: any) => void }> = (
                         ))}
                         {archived.map(l => (
                             <div key={l.id} className="rounded-lg p-2 mb-1.5 text-[11px]" style={{ background: 'rgba(255,255,255,.05)' }}>
-                                <div className="text-amber-50/80 leading-snug mb-1">你的信：<ExpandText text={l.content} limit={70} /></div>
+                                <div className="flex items-center gap-1.5 mb-1">
+                                    <span className="text-amber-200/70 text-[9.5px]">{l.pen}的信</span>
+                                    {l.status === 'sealed' && <span className="text-[8px] text-amber-200/60 border border-amber-300/30 rounded-full px-1.5 leading-tight">已封存</span>}
+                                </div>
+                                <div className="text-amber-50/80 leading-snug mb-1"><ExpandText text={l.content} limit={70} /></div>
                                 {(l.repliesReceived || []).map((r, i) => (
                                     <div key={i} className="text-[11px] text-amber-100/85 pl-2 border-l-2 border-amber-300/40 leading-snug mt-1"><span className="font-bold">{r.pen}</span> 回：<ExpandText text={r.content} limit={120} /></div>
                                 ))}
+                                {l.reaction?.content && (
+                                    <div className="text-[10.5px] text-pink-200/80 mt-1.5 pl-2 border-l-2 border-pink-300/40 leading-snug">读后：{l.reaction.content}</div>
+                                )}
                             </div>
                         ))}
                     </Section>

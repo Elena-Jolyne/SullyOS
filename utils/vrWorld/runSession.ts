@@ -33,6 +33,7 @@ import {
     buildGuestbookRoomTurn, parseGuestbookOutput,
     buildGymRoomTurn, parseGymOutput,
     buildPostOfficeRoomTurn, parsePostOfficeOutput,
+    buildPostOfficeReadTurn, parsePostOfficeReadOutput,
 } from './prompts';
 
 /** 记忆管线所需配置的最小形状（避免从 OSContext 反向 import 造成循环依赖）。 */
@@ -141,6 +142,7 @@ export async function runVRSession(deps: VRSessionDeps): Promise<VRSessionResult
         let pickable: CharPlaylistSong[] = [];
         let guestbook: VRGuestbookState | null = null;
         let poTarget: VRLetter | null = null;
+        let poReadTarget: VRLetter | null = null;
         const recallNames = new Set<string>();
         const recallExtra: string[] = [];
 
@@ -180,9 +182,20 @@ export async function runVRSession(deps: VRSessionDeps): Promise<VRSessionResult
         } else if (room.id === 'postoffice') {
             // 取一封"还没回过"的来信给角色看（有就可能回信，没有就写新信）
             const letters = await DB.getVRLetters();
-            const targets = letters.filter(l => l.box === 'inbox' && (l.replyStatus ?? 'none') === 'none' && l.remoteLetterId);
-            poTarget = targets.length > 0 ? targets[Math.floor(Math.random() * targets.length)] : null;
-            roomTurn = buildPostOfficeRoomTurn(poTarget ? { pen: poTarget.pen, content: poTarget.content } : null, char.name);
+            // 优先：认领自己寄出、已收到回信、还没读过的信 → 读回信、写感触、封存
+            poReadTarget = letters.find(l => l.box === 'outbox' && l.status === 'archived'
+                && l.charId === char.id && (l.repliesReceived?.length || 0) > 0 && !l.reaction) || null;
+            if (poReadTarget) {
+                roomTurn = buildPostOfficeReadTurn(
+                    poReadTarget.content,
+                    (poReadTarget.repliesReceived || []).map(r => ({ pen: r.pen, content: r.content })),
+                    char.name,
+                );
+            } else {
+                const targets = letters.filter(l => l.box === 'inbox' && (l.replyStatus ?? 'none') === 'none' && l.remoteLetterId);
+                poTarget = targets.length > 0 ? targets[Math.floor(Math.random() * targets.length)] : null;
+                roomTurn = buildPostOfficeRoomTurn(poTarget ? { pen: poTarget.pen, content: poTarget.content } : null, char.name);
+            }
         } else {
             // gym
             occupantsOf('gym').forEach(n => recallNames.add(n));
@@ -337,6 +350,16 @@ export async function runVRSession(deps: VRSessionDeps): Promise<VRSessionResult
             cardLines = [`「彼方 · ${room.name}」`, `${char.name}${activity}`];
             if (parsed.behavior) cardLines.push(`· ${parsed.behavior}`);
             meta = { vrCard: true, room: 'gym', activity, behavior: parsed.behavior };
+        } else if (room.id === 'postoffice' && poReadTarget) {
+            // === 邮局：认领自己寄出的信、读陌生人的回信、写感触 → 封存 ===
+            const parsed = parsePostOfficeReadOutput(aiContent);
+            const now = Date.now();
+            await DB.saveVRLetter({ ...poReadTarget, status: 'sealed', reaction: { content: parsed.reaction || '', createdAt: now } });
+            await updateCharacter(char.id, { vrState: { ...prevState, currentRoom: 'postoffice', lastActiveAt: Date.now() } });
+            activity = parsed.activity || '在邮局读完陌生人的回信，怔了几秒，把信收进了信匣。';
+            cardLines = [`「彼方 · ${room.name}」`, `${char.name}${activity}`];
+            if (parsed.reaction) cardLines.push(`感触：${parsed.reaction}`);
+            meta = { vrCard: true, room: 'postoffice', activity, letterExcerpt: parsed.reaction, behavior: '读完陌生人的回信，那封漂流信封存了。' };
         } else {
             // === 邮局：写漂流信 / 回信，落本地队列等用户一键寄出 ===
             const parsed = parsePostOfficeOutput(aiContent);

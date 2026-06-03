@@ -1,7 +1,25 @@
 import { describe, it, expect } from 'vitest';
 import { chunkNovelText, chunkNovelTextAsync, getReadingWindow, buildNovel } from './novel';
-import { parseVROutput, parseMusicOutput, parseGuestbookOutput, parseGymOutput, parsePostOfficeOutput } from './prompts';
+import { parseVROutput, parseMusicOutput, parseGuestbookOutput, parseGymOutput, parsePostOfficeOutput, parsePostOfficeReadOutput } from './prompts';
+import { maskPen } from './postOffice';
 import { decodeBytes } from './decodeText';
+
+describe('parsePostOfficeReadOutput', () => {
+    it('parses reaction + activity', () => {
+        const out = parsePostOfficeReadOutput('<感触>没想到真的有人懂。</感触><动态>读完回信怔了几秒</动态>');
+        expect(out.reaction).toContain('有人懂');
+        expect(out.activity).toContain('怔了');
+    });
+});
+
+describe('maskPen', () => {
+    it('hides the real name and is stable per name', () => {
+        const a = maskPen('林深');
+        expect(a).not.toBe('林深');
+        expect(maskPen('林深')).toBe(a); // 同名同笔名
+        expect(maskPen('')).toBe('匿名旅人');
+    });
+});
 
 describe('parsePostOfficeOutput', () => {
     it('parses a new letter', () => {

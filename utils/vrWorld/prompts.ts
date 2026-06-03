@@ -432,3 +432,42 @@ export function parsePostOfficeOutput(raw: string): ParsedPostOfficeOutput {
         activity: a ? a[1].trim() : '',
     };
 }
+
+/** 角色读自己寄出的信收到的回信，写下感触（不再回信，读完即封存）。 */
+export function buildPostOfficeReadTurn(
+    myLetterContent: string,
+    replies: { pen: string; content: string }[],
+    selfName: string,
+): string {
+    const lines: string[] = [];
+    lines.push(`你的化身又走进邮局。管理员说：你之前寄出的那封漂流信，有陌生人回信了。`);
+    lines.push('');
+    lines.push(`你当初写的是：`);
+    lines.push(`『${myLetterContent}』`);
+    lines.push('');
+    lines.push(replies.length > 1 ? `收到了 ${replies.length} 封回信：` : `收到了一封回信：`);
+    replies.forEach(r => {
+        lines.push(`— 笔名「${r.pen}」：`);
+        lines.push(`  『${r.content}』`);
+    });
+    lines.push('');
+    lines.push(`读完这些来自陌生人的回应，写下你此刻真实的感触——被理解的、意外的、好笑的、怅然的，按"${selfName}这个人"的反应来。`);
+    lines.push(`不用再回信，这封漂流信的使命已经完成；读过，就把它和这些回信一起封存进信匣。`);
+    lines.push('');
+    lines.push([
+        `【输出格式】`,
+        `<彼方>`,
+        `<感触>读完陌生人回信后，你心里的话/反应（一两句即可，真诚）</感触>`,
+        `<动态>一句第三人称播报。例：在邮局读完陌生人的回信，怔了几秒，把信折好收进了信匣。</动态>`,
+        `</彼方>`,
+    ].join('\n'));
+    return lines.join('\n');
+}
+
+export interface ParsedPostOfficeReadOutput { reaction?: string; activity: string; }
+
+export function parsePostOfficeReadOutput(raw: string): ParsedPostOfficeReadOutput {
+    const f = raw.match(/<感触>([\s\S]*?)<\/感触>/);
+    const a = raw.match(/<动态>([\s\S]*?)<\/动态>/);
+    return { reaction: f && f[1].trim() ? f[1].trim() : undefined, activity: a ? a[1].trim() : '' };
+}

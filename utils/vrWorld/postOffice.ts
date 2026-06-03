@@ -30,6 +30,23 @@ export const getDeviceId = (): string => {
     }
 };
 
+/**
+ * 笔名马赛克：寄信/回信时把真实角色名换成一个稳定的匿名笔名。
+ * 同名 → 同笔名（便于多次往来的连续感），但圈子里的人看不出是谁。
+ */
+const PEN_POOL = [
+    '山雀', '渡口', '夜航船', '北纬以北', '苔痕', '停摆的钟', '未寄出', '远洋来信',
+    '拾光', '梧桐巷口', '十一月', '旧船票', '薄雾', '信天翁', '空瓶', '逆旅',
+    '檐下雨', '无人岛', '回声', '草垛', '末班车', '潮汐表', '蝉蜕', '星图边角',
+];
+export function maskPen(name: string): string {
+    const n = (name || '').trim();
+    if (!n) return '匿名旅人';
+    let h = 0;
+    for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0;
+    return PEN_POOL[h % PEN_POOL.length];
+}
+
 export interface RemoteLetter { id: string; pen: string; content: string; created_at: number; }
 export interface RemoteReply { id: string; letter_id: string; pen: string; content: string; created_at: number; }
 
@@ -53,9 +70,10 @@ export const PostOffice = {
         try { const r = await call<{ ok: boolean }>('/health'); return !!r.ok; } catch { return false; }
     },
 
-    /** 上传待寄出的信，返回服务端分配的 id 列表 */
+    /** 上传待寄出的信，返回服务端分配的 id 列表（笔名自动马赛克） */
     async uploadLetters(letters: { pen: string; content: string; lang?: string }[]): Promise<string[]> {
-        const r = await call<{ ids: string[] }>('/letters', { method: 'POST', body: JSON.stringify({ device: getDeviceId(), letters }) });
+        const masked = letters.map(l => ({ ...l, pen: maskPen(l.pen) }));
+        const r = await call<{ ids: string[] }>('/letters', { method: 'POST', body: JSON.stringify({ device: getDeviceId(), letters: masked }) });
         return r.ids || [];
     },
 
@@ -65,9 +83,10 @@ export const PostOffice = {
         return r.letters || [];
     },
 
-    /** 上传回信 */
+    /** 上传回信（笔名自动马赛克） */
     async uploadReplies(replies: { letterId: string; pen: string; content: string }[]): Promise<number> {
-        const r = await call<{ accepted: number }>('/replies', { method: 'POST', body: JSON.stringify({ device: getDeviceId(), replies }) });
+        const masked = replies.map(rp => ({ ...rp, pen: maskPen(rp.pen) }));
+        const r = await call<{ accepted: number }>('/replies', { method: 'POST', body: JSON.stringify({ device: getDeviceId(), replies: masked }) });
         return r.accepted || 0;
     },
 
