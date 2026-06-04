@@ -52,9 +52,11 @@ export const InstantPushSettingsModal: React.FC<InstantPushSettingsModalProps> =
   const [capabilityStatusKind, setCapabilityStatusKind] = useState<'idle' | 'loading' | 'success' | 'warning' | 'error'>('idle');
   const [capabilityBusy, setCapabilityBusy] = useState(false);
   const [copyStatus, setCopyStatus] = useState('');
-  const [versionStatus, setVersionStatus] = useState('');
-  const [versionStatusKind, setVersionStatusKind] = useState<'idle' | 'loading' | 'success' | 'warning' | 'error'>('idle');
-  const [versionBusy, setVersionBusy] = useState(false);
+  // 对比已部署的 worker 自报版本: 'idle' 初始, 'checking' 拉取中, 'latest' 完全匹配, 'stale' 任何
+  // 不匹配 (拉不到 / 旧 bundle 没 /version / 版本对不上). 故意不展开 stale 的子情况 —— 对用户而言
+  // 都是"该重新部署"。staleDetail 仅用于在 stale 时给出可读的原因 (HTTP xxx / 网络错误等)。
+  const [versionCheck, setVersionCheck] = useState<'idle' | 'checking' | 'latest' | 'stale'>('idle');
+  const [versionCheckDetail, setVersionCheckDetail] = useState('');
 
   // GitHub 上 worker.bundle.js 的地址 — 主路径是 app 内「复制 Worker 代码」直接拷贝
   // 本地随包的 bundle; 这个 URL 仅作复制失败时的兜底入口. vite.config.ts 注入的
@@ -82,8 +84,8 @@ export const InstantPushSettingsModal: React.FC<InstantPushSettingsModalProps> =
     setCapabilityStatus('');
     setCapabilityStatusKind('idle');
     setCopyStatus('');
-    setVersionStatus('');
-    setVersionStatusKind('idle');
+    setVersionCheck('idle');
+    setVersionCheckDetail('');
   }, [open]);
 
   const normalizedWorkerUrl = normalizeWorkerUrl(workerUrl);
@@ -135,43 +137,22 @@ export const InstantPushSettingsModal: React.FC<InstantPushSettingsModalProps> =
   };
 
   const handleCheckDeployedVersion = async () => {
-    if (versionBusy) return;
+    if (versionCheck === 'checking') return;
     if (!normalizedWorkerUrl) {
-      setVersionStatus('请先填 Worker URL');
-      setVersionStatusKind('warning');
+      setVersionCheck('stale');
+      setVersionCheckDetail('请先填 Worker URL');
       return;
     }
-    setVersionBusy(true);
-    setVersionStatus('正在查询已部署版本…');
-    setVersionStatusKind('loading');
-    try {
-      const result = await probeInstantWorkerVersion(currentCfg());
-      if (!result.ok) {
-        const errText = result.error || '未知错误';
-        // /version 是新增路由,老 bundle 没有,Cloudflare 通常返 404。提示用户这就是要重新部署的信号。
-        const looksLikeOldBundle = /404|not found/i.test(errText);
-        setVersionStatus(
-          looksLikeOldBundle
-            ? `你部署的 Worker 没有 /version 路由,通常意味着是旧版 bundle —— 重新部署即可解决`
-            : `查询失败：${errText}`
-        );
-        setVersionStatusKind(looksLikeOldBundle ? 'warning' : 'error');
-        return;
-      }
-      const deployed = result.version!;
-      if (deployed === INSTANT_WORKER_VERSION) {
-        setVersionStatus(`✓ 你部署的版本 (${deployed}) 已是最新`);
-        setVersionStatusKind('success');
-      } else {
-        setVersionStatus(`你部署的是 ${deployed},最新是 ${INSTANT_WORKER_VERSION} —— 建议重新部署`);
-        setVersionStatusKind('warning');
-      }
-    } catch (e) {
-      const err = e as { message?: string } | null;
-      setVersionStatus(`查询失败：${err?.message ?? String(e)}`);
-      setVersionStatusKind('error');
-    } finally {
-      setVersionBusy(false);
+    setVersionCheck('checking');
+    setVersionCheckDetail('');
+    const result = await probeInstantWorkerVersion(currentCfg());
+    if (result.ok) {
+      setVersionCheck('latest');
+      setVersionCheckDetail('');
+    } else {
+      // 任何拉取失败 / 版本不匹配 → 一律视为旧版, 不再细分 404/405/网络错误。
+      setVersionCheck('stale');
+      setVersionCheckDetail(result.error ?? '未知错误');
     }
   };
 
@@ -470,24 +451,34 @@ export const InstantPushSettingsModal: React.FC<InstantPushSettingsModalProps> =
             VAPID 公钥/私钥到「推送凭据 (VAPID)」面板复制 env 清单，粘进 Worker 的 Variables。
           </p>
 
-          {/* Worker 代码版本 + 对比已部署 */}
+          {/* Worker 代码版本 + 对比已部署: 拉 worker /version 跟随包版本对, 拉不到 / 不一致都算旧 */}
           <div className="flex items-center justify-between gap-3 rounded-xl bg-white border border-slate-200 px-3 py-2">
             <div className="min-w-0">
-              <p className="text-[11px] text-slate-500">当前 Worker 代码版本</p>
+              <p className="text-[11px] text-slate-500">最新 Worker 代码版本</p>
               <p className="text-[12px] font-bold text-slate-700 font-mono">{INSTANT_WORKER_VERSION}</p>
             </div>
             <button
               type="button"
               onClick={() => void handleCheckDeployedVersion()}
-              disabled={versionBusy || !normalizedWorkerUrl}
-              className={`shrink-0 px-3 py-2 text-[11px] rounded-xl font-bold ${versionBusy || !normalizedWorkerUrl ? 'bg-slate-100 text-slate-400' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+              disabled={versionCheck === 'checking' || !normalizedWorkerUrl}
+              className={`shrink-0 px-3 py-2 text-[11px] rounded-xl font-bold ${
+                versionCheck === 'checking' || !normalizedWorkerUrl
+                  ? 'bg-slate-100 text-slate-400'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
             >
-              {versionBusy ? '查询中…' : '对比已部署'}
+              {versionCheck === 'checking' ? '查询中…' : '对比已部署'}
             </button>
           </div>
-          {versionStatus && (
-            <p className={`text-[11px] leading-relaxed ${versionStatusKind === 'success' ? 'text-emerald-600' : versionStatusKind === 'warning' ? 'text-amber-600' : versionStatusKind === 'error' ? 'text-rose-500' : 'text-slate-500'}`}>
-              {versionStatus}
+          {versionCheck === 'latest' && (
+            <p className="text-[11px] leading-relaxed text-emerald-600">
+              ✓ 你部署的 Worker 已是最新 ({INSTANT_WORKER_VERSION})
+            </p>
+          )}
+          {versionCheck === 'stale' && (
+            <p className="text-[11px] leading-relaxed text-amber-600">
+              你部署的 Worker 不是最新版 —— 按下面复制最新代码到 CF Worker 重新 Deploy 即可
+              {versionCheckDetail ? ` (${versionCheckDetail})` : ''}
             </p>
           )}
 

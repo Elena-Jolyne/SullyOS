@@ -9,6 +9,7 @@ import {
   subscribeWithRetry,
 } from './pushSubscribeShared';
 import { ReiClient } from '@rei-standard/amsg-client';
+import { INSTANT_WORKER_VERSION } from './instantWorkerVersion';
 
 export const INSTANT_PUSH_CONFIG_KEY = 'instant_push_config_v1';
 
@@ -323,10 +324,12 @@ export interface InstantWorkerCapabilityResult {
 }
 
 export interface InstantWorkerVersionResult {
+  /** 仅当 worker 自报版本 = 随包 INSTANT_WORKER_VERSION 时为 true。其它任何情况 (404 / 405 /
+   *  网络错误 / 版本对不上) 都算 false —— 老 bundle 根本没有 /version 路由, 拉不到就当不是最新。 */
   ok: boolean;
-  error?: string;
-  /** Worker self-reported INSTANT_WORKER_VERSION (YYYY-MM-DD). */
+  /** worker 自报的版本号 (仅 ok=true 时有值); 调试用, 不影响 UI 判定。 */
   version?: string;
+  error?: string;
 }
 
 // ── localStorage helpers ───────────────────────────────────────────────────
@@ -387,6 +390,40 @@ async function resolveSafeFetchText(res: Response): Promise<{ text: string; pars
   return { text, parsed };
 }
 
+/**
+ * GET {workerUrl}/version 拉用户部署的 worker 的自报版本, 跟随包的 INSTANT_WORKER_VERSION
+ * 比对。判定是二元的: 只有"拿到合法响应且版本字符串完全相等"才算 ok, 其它通通是"不是最新"
+ * (老 bundle 根本没这条路由, 拉不到 = 旧版)。
+ *
+ * 故意不区分 404 / 405 / 网络错误 / 版本不匹配 —— 用户视角下都是"该重新部署"。
+ */
+export async function probeInstantWorkerVersion(
+  cfg: InstantPushConfig = loadInstantConfig(),
+): Promise<InstantWorkerVersionResult> {
+  const workerUrl = normalizeWorkerUrl(cfg.workerUrl || '');
+  if (!workerUrl.startsWith('https://')) {
+    return { ok: false, error: 'Worker URL 未配置或不是 https' };
+  }
+  try {
+    const res = await fetch(`${workerUrl}/version`, { method: 'GET' });
+    const { parsed } = await resolveSafeFetchText(res);
+    if (!res.ok) {
+      return { ok: false, error: parsed?.error?.message ?? `HTTP ${res.status}` };
+    }
+    const version = parsed?.data?.version;
+    if (typeof version !== 'string' || !version) {
+      return { ok: false, error: 'Worker 未返回版本号' };
+    }
+    if (version !== INSTANT_WORKER_VERSION) {
+      return { ok: false, version, error: `Worker 自报 ${version}, 不是最新` };
+    }
+    return { ok: true, version };
+  } catch (e) {
+    const err = e as { message?: string } | null;
+    return { ok: false, error: err?.message ?? String(e) };
+  }
+}
+
 export async function probeInstantWorkerCapabilities(
   cfg: InstantPushConfig = loadInstantConfig(),
 ): Promise<InstantWorkerCapabilityResult> {
@@ -430,32 +467,6 @@ export async function probeInstantWorkerCapabilities(
       multipartAvailable: data.multipart?.available !== false,
       raw: data,
     };
-  } catch (e) {
-    const err = e as { message?: string } | null;
-    return { ok: false, error: err?.message ?? String(e) };
-  }
-}
-
-export async function probeInstantWorkerVersion(
-  cfg: InstantPushConfig = loadInstantConfig(),
-): Promise<InstantWorkerVersionResult> {
-  const workerUrl = normalizeWorkerUrl(cfg.workerUrl || '');
-  if (!workerUrl.startsWith('https://')) {
-    return { ok: false, error: 'Worker URL 未配置或不是 https' };
-  }
-  try {
-    const res = await fetch(`${workerUrl}/version`, { method: 'GET' });
-    const { text, parsed } = await resolveSafeFetchText(res);
-    if (!res.ok) {
-      return { ok: false, error: parsed?.error?.message ?? `HTTP ${res.status}` };
-    }
-    const version = parsed?.data?.version;
-    if (typeof version !== 'string' || !version) {
-      // 旧版 worker 没有 /version 路由,Cloudflare 通常返 404 然后被前面 !res.ok 捕获;
-      // 这里兜底处理 200 但格式不对的情况 (理论上不会发生)。
-      return { ok: false, error: 'Worker 未返回版本号 (可能是旧版部署)', raw: text } as any;
-    }
-    return { ok: true, version };
   } catch (e) {
     const err = e as { message?: string } | null;
     return { ok: false, error: err?.message ?? String(e) };
