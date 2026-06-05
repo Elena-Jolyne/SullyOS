@@ -1399,6 +1399,16 @@ const MessageItem = React.memo(({
                                 ))}
                             </div>
                         )}
+                        {/* 留言簿：把角色在墙上留的原话也显示出来 */}
+                        {Array.isArray(md.boardPosts) && md.boardPosts.length > 0 && (
+                            <div className="mt-2 space-y-1">
+                                {md.boardPosts.map((p: any, i: number) => (
+                                    <div key={i} className="text-[11px] leading-snug text-indigo-100/90 pl-2 border-l-2 border-indigo-300/50">
+                                        {p?.replyToName && <span className="text-indigo-300/70">回 {p.replyToName}：</span>}{p?.content}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                     {/* 页脚 */}
                     <div className="px-3 py-1.5 border-t border-white/10 flex items-center justify-between">

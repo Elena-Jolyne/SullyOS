@@ -814,11 +814,13 @@ ${xhsEnabled ? `${[notionEnabled, feishuEnabled, notionNotesEnabled].filter(Bool
                     content = `${timeStr} [${sender}分享了小红书笔记]\n标题: ${note.title || '无标题'}\n作者: ${note.author || '未知'}\n赞: ${note.likes || 0}\n简介: ${note.desc || '无'}\n${m.role === 'user' ? '(请根据你的性格对这个帖子发表看法)' : ''}`;
                 }
                 else if ((m.type as string) === 'vr_card') {
-                    // vr_card：你自己进入 VR 社交游戏《彼方》(类似 VRChat) 时留下的动态。
-                    // 框定：是真在玩的一款游戏、事情发生在游戏世界里；当成"我在《彼方》里做的事"，
-                    // 别说成现实经历。怎么进入按角色自己的世界观，这里不做任何设定假设。
+                    // vr_card：你自己进入 VR 社交游戏《彼方》时留下的动态。
+                    // 启用了彼方的角色已在系统提示里常驻"《彼方》是什么"的设定，这里就不再逐卡重复，
+                    // 只留一句极简标记省 token；没启用彼方的角色（可能是旧卡片）才补完整框定兜底。
                     const body = typeof m.content === 'string' ? m.content : '';
-                    content = `${timeStr}（系统记录：这是你之前自己进入 VR 社交游戏《彼方》(功能上类似 VRChat) 时留下的动态——你确实进入并参与了这款游戏，只是事情发生在游戏世界里。聊到时就当成"我在《彼方》里做的事"来讲，别说成现实里发生的经历。）\n${body}`;
+                    content = char.vrState?.enabled
+                        ? `${timeStr}（你在《彼方》里的动态）\n${body}`
+                        : `${timeStr}（系统记录：这是你之前自己进入 VR 社交游戏《彼方》(功能上类似 VRChat) 时留下的动态——你确实进入并参与了这款游戏，只是事情发生在游戏世界里。聊到时就当成"我在《彼方》里做的事"来讲，别说成现实里发生的经历。）\n${body}`;
                 }
                 else if ((m.type as string) === 'html_card') {
                     // html_card：上下文里只塞纯文字摘要，剥离掉所有 HTML，省 token、不污染 LLM 思考

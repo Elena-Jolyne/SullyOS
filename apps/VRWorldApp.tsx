@@ -1338,6 +1338,7 @@ const RoomScene: React.FC<{
     const [board, setBoard] = useState<VRGuestbookState | null>(null);
     const [postText, setPostText] = useState('');
     const [posting, setPosting] = useState(false);
+    const [hideChibi, setHideChibi] = useState(false);  // 隐藏小人（留言簿等文字面板会被小人挡住时用）
     const music = useMusic();
 
     useEffect(() => {
@@ -1398,7 +1399,15 @@ const RoomScene: React.FC<{
                     style={{ background: 'linear-gradient(180deg,rgba(5,6,14,.55),transparent)' }}>
                     <button onClick={onClose} className="p-1.5 -ml-1.5 rounded-full bg-white/10 backdrop-blur-md active:bg-white/20 text-white/90 border border-white/10"><CaretLeft size={19} weight="regular" /></button>
                     <span className="text-[16px] text-white drop-shadow flex items-center gap-1.5 tracking-[0.14em]" style={{ fontFamily: `'Noto Serif SC',serif`, fontWeight: 500 }}>{room.name}</span>
-                    <span className="ml-auto text-[10px] tracking-wider text-white/60">{occupants.length} 人在场</span>
+                    <div className="ml-auto flex items-center gap-2">
+                        {occupants.length > 0 && (
+                            <button onClick={() => setHideChibi(h => !h)} title={hideChibi ? '显示小人' : '隐藏小人（避免挡住文字）'}
+                                className="text-[10px] px-2.5 py-1 rounded-full bg-white/10 backdrop-blur-md text-white/85 border border-white/10 active:bg-white/20">
+                                {hideChibi ? '显示小人' : '隐藏小人'}
+                            </button>
+                        )}
+                        <span className="text-[10px] tracking-wider text-white/60">{occupants.length} 人在场</span>
+                    </div>
                 </div>
 
                 {/* 听歌房：正在放 + 队列面板 */}
@@ -1490,8 +1499,8 @@ const RoomScene: React.FC<{
                 {/* 邮局：信件管理面板 */}
                 {isPostOffice && <PostOfficePanel addToast={addToast} characters={characters} userName={userName} />}
 
-                {/* chibi 站位 */}
-                {occupants.map((c, i) => {
+                {/* chibi 站位（可隐藏，避免挡住留言墙等文字） */}
+                {!hideChibi && occupants.map((c, i) => {
                     const slot = slots[i % slots.length];
                     const latest = latestByChar[c.id];
                     const idle = IDLE_QUIPS[roomId][i % IDLE_QUIPS[roomId].length];
