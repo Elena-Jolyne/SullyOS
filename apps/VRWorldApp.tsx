@@ -698,25 +698,6 @@ const HelpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     );
 };
 
-// 邮局分组（可折叠的大区间）。定义在模块级，避免随父组件重渲染而重挂、丢失展开状态。
-const LETTER_TONE: Record<string, string> = { amber: '#f3d08a', sky: '#7dd3fc', blue: '#93b8ff', green: '#86e3b0', grey: '#9aa0b0' };
-const LetterSection: React.FC<{ title: string; count: number; tone?: keyof typeof LETTER_TONE; badge?: string; defaultOpen?: boolean; children: React.ReactNode }> = ({ title, count, tone = 'amber', badge, defaultOpen = true, children }) => {
-    const [open, setOpen] = useState(defaultOpen);
-    const c = LETTER_TONE[tone];
-    return (
-        <div className="mb-3.5 rounded-xl p-2.5" style={{ background: 'rgba(0,0,0,0.18)', border: `1px solid ${c}22` }}>
-            <button onClick={() => setOpen(o => !o)} className="w-full flex items-center gap-1.5 active:opacity-70">
-                <span className="h-2 w-2 rounded-full shrink-0" style={{ background: c, boxShadow: `0 0 6px ${c}99` }} />
-                <span className="text-[11px] tracking-[0.12em] font-medium" style={{ color: c, fontFamily: `'Noto Serif SC',serif` }}>{title}</span>
-                {count > 0 && <span className="text-[9.5px] text-white/45 rounded-full px-1.5 leading-tight" style={{ background: 'rgba(255,255,255,.08)' }}>{count}</span>}
-                {badge && <span className="text-[8.5px] tracking-wide rounded-full px-1.5 py-0.5 leading-none" style={{ color: c, border: `1px solid ${c}44` }}>{badge}</span>}
-                <CaretRight size={12} weight="bold" className="ml-auto shrink-0 transition-transform" style={{ color: `${c}cc`, transform: open ? 'rotate(90deg)' : 'none' }} />
-            </button>
-            {open && <div className="mt-2">{children}</div>}
-        </div>
-    );
-};
-
 // 来信行（长按弹出：指定角色回 / 亲自回 / 删除）
 const InboxLetterRow: React.FC<{ l: VRLetter; onMenu: (l: VRLetter) => void; onLike: (l: VRLetter) => void; onDislike: (l: VRLetter) => void }> = ({ l, onMenu, onLike, onDislike }) => {
     const { pressing, handlers } = useLongPress(() => onMenu(l), 500);
@@ -935,6 +916,7 @@ const PostOfficePanel: React.FC<{ addToast?: (m: string, t?: any) => void; chara
     const [identityOpen, setIdentityOpen] = useState(false);            // 身份导出/导入弹窗
     const [composeNew, setComposeNew] = useState<VRLetter | null>(null); // 用户自己写新信的草稿
     const [myStats, setMyStats] = useState<Record<string, RemoteLetterStat>>({}); // 我寄出的信热度（按 remoteId）
+    const [tab, setTab] = useState<'outbox' | 'reply' | 'inbox' | 'drift' | 'box'>('outbox'); // 左侧分类
     const enabledChars = characters.filter(c => c.vrState?.enabled);
 
     const load = useCallback(async () => setLetters(await DB.getVRLetters()), []);
@@ -1112,75 +1094,103 @@ const PostOfficePanel: React.FC<{ addToast?: (m: string, t?: any) => void; chara
                 <button onClick={() => setIdentityOpen(true)} title="邮局身份导出/导入" className="text-[10.5px] px-2.5 py-1 rounded-full bg-white/8 text-amber-100/90">身份</button>
             </div>
 
-            <div className="flex-1 overflow-y-auto vr-reader-scroll px-3 py-2.5">
-                {/* 待寄出 */}
-                <LetterSection title="待寄出" count={outQueued.length} tone="amber" badge={outQueued.length ? '等你寄出' : undefined}>
-                    {outQueued.length === 0 ? <p className="text-[10.5px] text-white/35">角色在邮局写的漂流信会排在这里，你确认后一键寄出。也可以自己写一封。寄出时笔名会自动匿名。</p> : (
+            <div className="flex-1 flex min-h-0">
+                {/* 左侧分类栏 */}
+                <div className="w-[76px] shrink-0 overflow-y-auto vr-reader-scroll border-r border-white/10 py-2 px-1.5 space-y-1">
+                    {([
+                        { key: 'outbox', label: '待寄出', count: outQueued.length, tone: '#e8b75e' },
+                        { key: 'reply', label: '待发送', count: replyQueued.length, tone: '#e8b75e' },
+                        { key: 'inbox', label: '收件箱', count: inboxWaiting.length, tone: '#7dd3fc' },
+                        { key: 'drift', label: '漂流中', count: sentAwaiting.length, tone: '#93b8ff' },
+                        { key: 'box', label: '信匣', count: archived.length, tone: '#86e3b0' },
+                    ] as const).map(t => {
+                        const active = tab === t.key;
+                        return (
+                            <button key={t.key} onClick={() => setTab(t.key)}
+                                className="w-full rounded-lg px-1.5 py-2 text-left transition-colors"
+                                style={{ background: active ? 'rgba(255,255,255,.09)' : 'transparent', border: `1px solid ${active ? 'rgba(255,255,255,.14)' : 'transparent'}` }}>
+                                <div className="flex items-center gap-1">
+                                    <span className="h-2.5 w-[3px] rounded-full shrink-0" style={{ background: active ? t.tone : 'transparent' }} />
+                                    <span className={`text-[11px] ${active ? 'text-white font-semibold' : 'text-white/55'}`} style={{ fontFamily: `'Noto Serif SC',serif` }}>{t.label}</span>
+                                </div>
+                                {t.count > 0 && <div className="text-[9px] mt-0.5 pl-2" style={{ color: t.tone }}>{t.count}</div>}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {/* 右侧正文 */}
+                <div className="flex-1 min-w-0 overflow-y-auto vr-reader-scroll px-3 py-2.5">
+                    {tab === 'outbox' && (
                         <>
-                            <PagedList items={outQueued} perPage={4} render={l => <PendingLetterRow key={l.id} l={l} onMenu={setMenuFor} />} />
-                            <div className="text-[9.5px] text-white/35 text-right mb-1">今日已寄 {readSendQuota().count}/{PO_DAILY_LIMIT}</div>
-                            <button onClick={sendOutbox} disabled={!!busy} className="w-full mt-1 rounded-full py-2 text-[12px] font-semibold text-black disabled:opacity-40" style={{ background: 'linear-gradient(120deg,#f3d08a,#e8b75e)' }}>{busy === 'send' ? '寄出中…' : `一键寄出（${outQueued.length}）`}</button>
+                            {outQueued.length === 0 ? <p className="text-[10.5px] text-white/35 leading-relaxed">角色在邮局写的漂流信会排在这里，你确认后一键寄出。也可以自己写一封。寄出时笔名会自动匿名。</p> : (
+                                <>
+                                    <PagedList items={outQueued} perPage={6} render={l => <PendingLetterRow key={l.id} l={l} onMenu={setMenuFor} />} />
+                                    <div className="text-[9.5px] text-white/35 text-right mb-1">今日已寄 {readSendQuota().count}/{PO_DAILY_LIMIT}</div>
+                                    <button onClick={sendOutbox} disabled={!!busy} className="w-full mt-1 rounded-full py-2 text-[12px] font-semibold text-black disabled:opacity-40" style={{ background: 'linear-gradient(120deg,#f3d08a,#e8b75e)' }}>{busy === 'send' ? '寄出中…' : `一键寄出（${outQueued.length}）`}</button>
+                                </>
+                            )}
+                            <button onClick={startCompose} className="w-full mt-1.5 rounded-full py-1.5 text-[11px] text-amber-100/90" style={{ border: '1px solid rgba(220,190,120,.3)' }}>自己写一封新漂流信</button>
                         </>
                     )}
-                    <button onClick={startCompose} className="w-full mt-1.5 rounded-full py-1.5 text-[11px] text-amber-100/90" style={{ border: '1px solid rgba(220,190,120,.3)' }}>自己写一封新漂流信</button>
-                </LetterSection>
 
-                {/* 待发送的回信 */}
-                {replyQueued.length > 0 && (
-                    <LetterSection title="待发送的回信" count={replyQueued.length} tone="amber" badge="等你发出">
-                        <PagedList items={replyQueued} perPage={4} render={l => (
-                            <div key={l.id} className="rounded-lg p-2 mb-1.5" style={{ background: 'rgba(255,255,255,.05)' }}>
-                                <p className="text-[10.5px] text-white/55 leading-snug mb-1">原信（{l.pen}）：<ExpandText text={l.content} limit={80} /></p>
-                                <p className="text-[11.5px] text-amber-50/90 leading-snug whitespace-pre-wrap">回信：{l.reply!.content}</p>
-                                <input value={l.reply!.userNote || ''} onChange={e => setUserNote(l, e.target.value)} placeholder="想补充几句一起回？（选填）"
-                                    className="w-full mt-1.5 rounded-md bg-black/20 px-2 py-1 text-[11px] text-white placeholder-white/30 outline-none" />
-                            </div>
-                        )} />
-                        <button onClick={sendReplies} disabled={!!busy} className="w-full mt-1 rounded-full py-2 text-[12px] font-semibold text-black disabled:opacity-40" style={{ background: 'linear-gradient(120deg,#f3d08a,#e8b75e)' }}>{busy === 'reply' ? '发送中…' : `一键发送回信（${replyQueued.length}）`}</button>
-                    </LetterSection>
-                )}
+                    {tab === 'reply' && (
+                        replyQueued.length === 0 ? <p className="text-[10.5px] text-white/35 leading-relaxed">你亲自写好、还没发出的回信会排在这里。</p> : (
+                            <>
+                                <PagedList items={replyQueued} perPage={6} render={l => (
+                                    <div key={l.id} className="rounded-lg p-2 mb-1.5" style={{ background: 'rgba(255,255,255,.05)' }}>
+                                        <p className="text-[10.5px] text-white/55 leading-snug mb-1">原信（{l.pen}）：<ExpandText text={l.content} limit={80} /></p>
+                                        <p className="text-[11.5px] text-amber-50/90 leading-snug whitespace-pre-wrap">回信：{l.reply!.content}</p>
+                                        <input value={l.reply!.userNote || ''} onChange={e => setUserNote(l, e.target.value)} placeholder="想补充几句一起回？（选填）"
+                                            className="w-full mt-1.5 rounded-md bg-black/20 px-2 py-1 text-[11px] text-white placeholder-white/30 outline-none" />
+                                    </div>
+                                )} />
+                                <button onClick={sendReplies} disabled={!!busy} className="w-full mt-1 rounded-full py-2 text-[12px] font-semibold text-black disabled:opacity-40" style={{ background: 'linear-gradient(120deg,#f3d08a,#e8b75e)' }}>{busy === 'reply' ? '发送中…' : `一键发送回信（${replyQueued.length}）`}</button>
+                            </>
+                        )
+                    )}
 
-                {/* 收件箱（待角色回信） */}
-                {inboxWaiting.length > 0 && (
-                    <LetterSection title="收件箱" count={inboxWaiting.length} tone="sky" badge="等角色回信">
-                        <p className="text-[9.5px] text-white/35 mb-1.5 leading-snug">陌生人寄来的信。等角色逛到邮局会自己回，也可以<b className="text-sky-200/80">长按某封信</b>，指定角色去回、或你亲自回。</p>
-                        <PagedList items={inboxWaiting} perPage={5} render={l => <InboxLetterRow key={l.id} l={l} onMenu={setInboxMenu} onLike={onLike} onDislike={onDislike} />} />
-                    </LetterSection>
-                )}
+                    {tab === 'inbox' && (
+                        inboxWaiting.length === 0 ? <p className="text-[10.5px] text-white/35 leading-relaxed">点上方「刷新收件箱」捞陌生人寄来的信。收到后长按某封，指定角色去回、或你亲自回。</p> : (
+                            <>
+                                <p className="text-[9.5px] text-white/35 mb-1.5 leading-snug">陌生人寄来的信。等角色逛到邮局会自己回，也可以<b className="text-sky-200/80">长按某封信</b>，指定角色去回、或你亲自回。</p>
+                                <PagedList items={inboxWaiting} perPage={7} render={l => <InboxLetterRow key={l.id} l={l} onMenu={setInboxMenu} onLike={onLike} onDislike={onDislike} />} />
+                            </>
+                        )
+                    )}
 
-                {/* 已寄出·等回复中 */}
-                {sentAwaiting.length > 0 && (
-                    <LetterSection title="漂流中" count={sentAwaiting.length} tone="blue" badge="已寄出·等回复">
-                        <PagedList items={sentAwaiting} perPage={5} render={l => (
-                            <div key={l.id} className="rounded-lg p-2 mb-1.5 text-[11px]" style={{ background: 'rgba(255,255,255,.04)' }}>
-                                <div className="text-white/70 leading-snug"><ExpandText text={l.content} limit={70} /></div>
-                                {statLine(l.remoteId)}
-                            </div>
-                        )} />
-                    </LetterSection>
-                )}
-
-                {/* 信匣·留档（已收到回复） */}
-                {archived.length > 0 && (
-                    <LetterSection title="信匣" count={archived.length} tone="green" badge="已收到回复">
-                        <PagedList items={archived} perPage={4} render={l => (
-                            <div key={l.id} className="rounded-lg p-2 mb-1.5 text-[11px]" style={{ background: 'rgba(255,255,255,.05)' }}>
-                                <div className="flex items-center gap-1.5 mb-1">
-                                    <span className="text-amber-200/70 text-[9.5px]">{l.pen}的信</span>
-                                    {l.status === 'sealed' && <span className="text-[8px] text-amber-200/60 border border-amber-300/30 rounded-full px-1.5 leading-tight">已封存</span>}
+                    {tab === 'drift' && (
+                        sentAwaiting.length === 0 ? <p className="text-[10.5px] text-white/35 leading-relaxed">已寄出、还在等陌生人回信的漂流信会显示在这里。</p> : (
+                            <PagedList items={sentAwaiting} perPage={7} render={l => (
+                                <div key={l.id} className="rounded-lg p-2 mb-1.5 text-[11px]" style={{ background: 'rgba(255,255,255,.04)' }}>
+                                    <div className="text-white/70 leading-snug"><ExpandText text={l.content} limit={70} /></div>
+                                    {statLine(l.remoteId)}
                                 </div>
-                                <div className="text-amber-50/80 leading-snug mb-1"><ExpandText text={l.content} limit={70} /></div>
-                                {statLine(l.remoteId)}
-                                {(l.repliesReceived || []).map((r, i) => (
-                                    <div key={i} className="text-[11px] text-amber-100/85 pl-2 border-l-2 border-amber-300/40 leading-snug mt-1"><span className="font-bold">{r.pen}</span> 回：<ExpandText text={r.content} limit={120} /></div>
-                                ))}
-                                {l.reaction?.content && (
-                                    <div className="text-[10.5px] text-pink-200/80 mt-1.5 pl-2 border-l-2 border-pink-300/40 leading-snug">读后：{l.reaction.content}</div>
-                                )}
-                            </div>
-                        )} />
-                    </LetterSection>
-                )}
+                            )} />
+                        )
+                    )}
+
+                    {tab === 'box' && (
+                        archived.length === 0 ? <p className="text-[10.5px] text-white/35 leading-relaxed">收到陌生人回信、被角色读过封存的信会留档在这里。</p> : (
+                            <PagedList items={archived} perPage={5} render={l => (
+                                <div key={l.id} className="rounded-lg p-2 mb-1.5 text-[11px]" style={{ background: 'rgba(255,255,255,.05)' }}>
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                        <span className="text-amber-200/70 text-[9.5px]">{l.pen}的信</span>
+                                        {l.status === 'sealed' && <span className="text-[8px] text-amber-200/60 border border-amber-300/30 rounded-full px-1.5 leading-tight">已封存</span>}
+                                    </div>
+                                    <div className="text-amber-50/80 leading-snug mb-1"><ExpandText text={l.content} limit={70} /></div>
+                                    {statLine(l.remoteId)}
+                                    {(l.repliesReceived || []).map((r, i) => (
+                                        <div key={i} className="text-[11px] text-amber-100/85 pl-2 border-l-2 border-amber-300/40 leading-snug mt-1"><span className="font-bold">{r.pen}</span> 回：<ExpandText text={r.content} limit={120} /></div>
+                                    ))}
+                                    {l.reaction?.content && (
+                                        <div className="text-[10.5px] text-pink-200/80 mt-1.5 pl-2 border-l-2 border-pink-300/40 leading-snug">读后：{l.reaction.content}</div>
+                                    )}
+                                </div>
+                            )} />
+                        )
+                    )}
+                </div>
             </div>
 
             {/* 长按菜单 / 编辑 / 删除确认 */}
