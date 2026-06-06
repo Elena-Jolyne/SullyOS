@@ -6,8 +6,14 @@
  * instead of JSON responses.
  */
 
-import { appendDevDebugLlmLog } from './devDebug';
+// 同时挂两套日志：
+//   - devDebug 的 api 类目（开发者勾「API」复制 / 下载导出）
+//   - 全局 fetch 拦截器 + apiCallLog（用户在「设置 → API 调用记录」里看）
+// 后者的 meta 通过下面 safeFetchJson 的第 5 个参数挂到 __sullyMeta 上传出去。
+import { appendDevDebugApiLog, makeDebugLogger } from './devDebug';
 import { type ApiCallMeta } from './apiCallLog';
+
+const log = makeDebugLogger('api', 'SafeAPI');
 
 function isChatCompletionUrl(url: string): boolean {
     return url.includes('/chat/completions');
@@ -170,7 +176,7 @@ export async function safeFetchJson(
                 // For retryable status codes, retry before giving up
                 if (retryableStatuses.has(response.status) && attempt < maxRetries) {
                     const delay = Math.pow(2, attempt) * 1000; // 1s, 2s
-                    console.warn(`[SafeAPI] HTTP ${response.status}, retry ${attempt + 1}/${maxRetries} in ${delay}ms...`);
+                    log.warn('HTTP retry', { status: response.status, attempt: attempt + 1, maxRetries, delay });
                     await new Promise(r => setTimeout(r, delay));
                     continue;
                 }
@@ -183,7 +189,7 @@ export async function safeFetchJson(
 
             const data = await safeResponseJson(response);
             if (isChatCompletionUrl(urlStr)) {
-                appendDevDebugLlmLog({
+                appendDevDebugApiLog({
                     url: urlStr,
                     method: options.method,
                     status: response.status,
@@ -200,23 +206,23 @@ export async function safeFetchJson(
             const isAbort = e?.name === 'AbortError' || /aborted|timeout/i.test(e?.message || '');
 
             // Network errors (fetch itself failed) are retryable
-            if ((e.name === 'TypeError' || isAbort) && attempt < maxRetries) {
+            if ((e?.name === 'TypeError' || isAbort) && attempt < maxRetries) {
                 const delay = Math.pow(2, attempt) * 1000;
-                console.warn(`[SafeAPI] ${isAbort ? 'Timeout/Abort' : 'Network error'}, retry ${attempt + 1}/${maxRetries} in ${delay}ms:`, e.message);
+                log.warn(isAbort ? 'Timeout/Abort retry' : 'Network error retry', { attempt: attempt + 1, maxRetries, delay, message: e?.message });
                 await new Promise(r => setTimeout(r, delay));
                 continue;
             }
 
             // For HTML/parse errors on non-ok responses during retry, continue
-            if (attempt < maxRetries && e.message?.includes('API返回了HTML')) {
+            if (attempt < maxRetries && e?.message?.includes('API返回了HTML')) {
                 const delay = Math.pow(2, attempt) * 1000;
-                console.warn(`[SafeAPI] HTML response, retry ${attempt + 1}/${maxRetries} in ${delay}ms`);
+                log.warn('HTML response retry', { attempt: attempt + 1, maxRetries, delay });
                 await new Promise(r => setTimeout(r, delay));
                 continue;
             }
 
             if (isChatCompletionUrl(urlStr)) {
-                appendDevDebugLlmLog({
+                appendDevDebugApiLog({
                     url: urlStr,
                     method: options.method,
                     status: lastStatus,

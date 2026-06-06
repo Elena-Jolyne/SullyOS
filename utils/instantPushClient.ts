@@ -1,7 +1,7 @@
 import { InstantPushConfig, APIConfig, type InstantOversizeTransport } from '../types';
 import { loadPushVapid, isPushVapidReady } from './pushVapid';
 import { ActiveMsgStore } from './activeMsgStore';
-import { appendDevDebugLlmLog } from './devDebug';
+import { appendDevDebugInstantPushLog, appendDevDebugLog, makeDebugLogger } from './devDebug';
 import {
   SUBSCRIBE_SETTLE_MS,
   bytesToB64u,
@@ -10,6 +10,8 @@ import {
 } from './pushSubscribeShared';
 import { ReiClient } from '@rei-standard/amsg-client';
 import { INSTANT_WORKER_VERSION } from './instantWorkerVersion';
+
+const log = makeDebugLogger('instant-push', 'InstantPush');
 
 export const INSTANT_PUSH_CONFIG_KEY = 'instant_push_config_v1';
 
@@ -657,7 +659,7 @@ export async function sendInstantPush(
       const cfRay = res.headers.get('cf-ray') || undefined;
       const errMsg = parsed?.error?.message ?? `HTTP ${res.status}${res.statusText ? ' ' + res.statusText : ''}`;
       // 完整 URL 等敏感字段不进弹窗, 但写到 console 给本地开发者
-      console.error('[InstantPush] HTTP failure', { url, status: res.status, statusText: res.statusText, body: rawText });
+      log.error('HTTP failure', { url, status: res.status, statusText: res.statusText, body: rawText });
       return {
         ok: false,
         error: errMsg,
@@ -692,7 +694,7 @@ export async function sendInstantPush(
     };
   } catch (e) {
     const err = e as { name?: string; message?: string } | null;
-    console.error('[InstantPush] fetch threw', { url, err });
+    log.error('fetch threw', { url, err });
     return {
       ok: false,
       error: err?.message ?? String(e),
@@ -734,6 +736,40 @@ const DEFAULT_INSTANT_TIMEOUT_MS = 90_000;
 // 流跑完 (stream_done) 只代表 payload 都交给了 SW, 不代表已落库; 真正的成功信号是
 // active-msg-received。这一跳正常 <1s, 给 8s 容错 (含 applyAssistantPostProcessing)。
 const SSE_FLUSH_GRACE_MS = 8_000;
+const INSTANT_TRACE_LOG_KEY = 'instant_push_trace_log_v1';
+const INSTANT_TRACE_LOG_LIMIT = 200;
+
+// 三写说明（故意不用 makeDebugLogger，因为 trace 跟普通 logger 的语义不一样）：
+//   1) console.info → F12 看实时通道事件
+//   2) localStorage ring buffer (instant_push_trace_log_v1, 200 条上限)
+//      → 无条件抓的"通道自带 debug ring"，开发者随时可 localStorage.getItem 查
+//   3) appendDevDebugLog → 用户勾了 IP 才录的"可控录制"，进复制 / 下载导出
+// ring 跟 devDebug 的区别就是「无条件 vs 用户可控」，两套并存是有意的。
+function instantTrace(
+  sessionId: string,
+  event: string,
+  details: Record<string, unknown> = {},
+): void {
+  const entry = {
+    ts: new Date().toISOString(),
+    sessionId,
+    event,
+    visibility: typeof document !== 'undefined' ? document.visibilityState : 'n/a',
+    online: typeof navigator !== 'undefined' ? navigator.onLine : undefined,
+    ...details,
+  };
+  try {
+    console.info('[InstantTrace]', entry);
+  } catch { /* ignore */ }
+  try {
+    const raw = localStorage.getItem(INSTANT_TRACE_LOG_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    const next = Array.isArray(list) ? [...list, entry].slice(-INSTANT_TRACE_LOG_LIMIT) : [entry];
+    localStorage.setItem(INSTANT_TRACE_LOG_KEY, JSON.stringify(next));
+  } catch { /* ignore */ }
+  // gate 由 isCaptureEnabled('instant-push') 在 appendDevDebugLog 内部自动管，未勾时零成本。
+  appendDevDebugLog('instant-push', { label: `trace:${event}`, data: entry });
+}
 
 // /instant 与 /continue 都把预分配的 sessionId 作为 SW 投递的 requestId; 优先取
 // payload 自带的 instantTraceId (老格式兼容), 否则回落 sessionId / messageId。
@@ -841,9 +877,17 @@ export async function sendInstantPushAndAwaitReply(
     : `sess-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const env = await collectEnvSnapshot();
   const context = buildContextDiag(business);
+  instantTrace(sessionId, 'send-start', {
+    charId,
+    contactName: business.contactName,
+    model: business.primaryModel,
+    msgCount: context?.msgCount,
+    msgBytes: context?.msgBytes,
+  });
 
   const cfg = loadInstantConfig();
   if (!isInstantConfigReady(cfg)) {
+    instantTrace(sessionId, 'config-missing');
     return {
       ok: false,
       outcome: 'config-missing',
@@ -861,6 +905,7 @@ export async function sendInstantPushAndAwaitReply(
 
   const { sub, reason } = await getOrCreateInstantSubscription();
   if (!sub) {
+    instantTrace(sessionId, 'subscription-failed', { reason });
     let swRegistered: boolean | undefined;
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
       try { swRegistered = !!(await navigator.serviceWorker.getRegistration()); } catch { /* ignore */ }
@@ -887,6 +932,11 @@ export async function sendInstantPushAndAwaitReply(
     const detail = (e as CustomEvent).detail;
     if (detail?.charId === charId) {
       receivedPushDetail = detail;
+      instantTrace(sessionId, 'active-msg-received', {
+        detailCharId: detail?.charId,
+        bodyChars: typeof detail?.body === 'string' ? detail.body.length : undefined,
+        emotionUpdate: !!detail?.emotionUpdate,
+      });
       pushResolver();
     }
   };
@@ -908,16 +958,21 @@ export async function sendInstantPushAndAwaitReply(
     });
   } catch (e) {
     // outbound 写入失败不阻塞 push 主路径; Round 2 worker 升级前这条数据没人读
-    console.warn('[InstantPush] saveOutboundSession failed (non-fatal)', sessionId, e);
+    log.warn('saveOutboundSession failed (non-fatal)', { sessionId, error: e });
   }
 
   const sendStartedAt = Date.now();
   const abortController = new AbortController();
   const abortOnPageHide = (event: PageTransitionEvent) => {
+    instantTrace(sessionId, 'pagehide', { persisted: !!event.persisted });
     if (event.persisted) return;
     abortController.abort();
   };
+  const traceVisibilityChange = () => {
+    instantTrace(sessionId, 'visibilitychange');
+  };
   let pageHideListenerAttached = false;
+  let visibilityListenerAttached = false;
   try {
     const wirePayload: InstantPushPayload = {
       ...business,
@@ -928,6 +983,8 @@ export async function sendInstantPushAndAwaitReply(
 
     window.addEventListener('pagehide', abortOnPageHide, { once: true });
     pageHideListenerAttached = true;
+    document.addEventListener('visibilitychange', traceVisibilityChange);
+    visibilityListenerAttached = true;
 
     const reiClient = new ReiClient({
       baseUrl: normalizeWorkerUrl(cfg.workerUrl || ''),
@@ -942,28 +999,46 @@ export async function sendInstantPushAndAwaitReply(
     let sseDeliveredOk = false;
     let sseDeliveryFailed = false;
     let sseBusinessError: string | undefined;
+    instantTrace(sessionId, 'sse-start', {
+      oversizeTransport: wirePayload.oversizeTransport,
+    });
     const streamPromise = reiClient.consumeInstantStream(wirePayload, '/instant', {
       signal: abortController.signal,
       onPayload: async (p: any) => {
+        instantTrace(sessionId, 'sse-payload', {
+          messageKind: p?.messageKind,
+          messageId: p?.messageId,
+          payloadSessionId: p?.sessionId,
+          chunk: p?.messageIndex,
+          total: p?.totalMessages,
+          hasBlob: p?._blob === true,
+        });
         const ack = await postSsePayloadToServiceWorker(p);
         if (ack.ok) sseDeliveredOk = true;
         else sseDeliveryFailed = true;
         if (ack.businessError) sseBusinessError = ack.businessError;
+        instantTrace(sessionId, 'sse-payload-ack', {
+          ok: ack.ok,
+          businessError: ack.businessError,
+        });
       },
     });
     // `consumeInstantStream()` calls fetch() synchronously before its first await,
     // so the request is now queued in the browser network stack.
     onPosted?.();
+    instantTrace(sessionId, 'sse-dispatched');
 
     const result = await Promise.race([
       pushArrived.then(() => 'arrived' as const),
       streamPromise.then(() => 'stream_done' as const),
       new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), timeoutMs)),
     ]);
+    instantTrace(sessionId, 'race-result', { result });
 
     if (result === 'timeout') {
       abortController.abort();
-      appendDevDebugLlmLog({
+      instantTrace(sessionId, 'timeout', { waitedMs: Date.now() - sendStartedAt });
+      appendDevDebugInstantPushLog({
         url: cfg.workerUrl,
         method: 'POST',
         status: 200,
@@ -1002,10 +1077,17 @@ export async function sendInstantPushAndAwaitReply(
         pushArrived.then(() => true),
         new Promise<boolean>((r) => setTimeout(() => r(false), SSE_FLUSH_GRACE_MS)),
       ]);
+      instantTrace(sessionId, 'stream-done-grace', {
+        flushed,
+        sseDeliveredOk,
+        sseDeliveryFailed,
+        sseBusinessError,
+      });
       if (!flushed) {
         abortController.abort();
         const waitedMs = Date.now() - sendStartedAt;
-        appendDevDebugLlmLog({
+        instantTrace(sessionId, 'flush-not-confirmed', { waitedMs });
+        appendDevDebugInstantPushLog({
           url: cfg.workerUrl,
           method: 'POST',
           status: 200,
@@ -1044,7 +1126,7 @@ export async function sendInstantPushAndAwaitReply(
       }
     }
 
-    appendDevDebugLlmLog({
+    appendDevDebugInstantPushLog({
       url: cfg.workerUrl,
       method: 'POST',
       status: 200,
@@ -1059,9 +1141,18 @@ export async function sendInstantPushAndAwaitReply(
         push: receivedPushDetail,
       },
     });
+    instantTrace(sessionId, 'received', {
+      waitedMs: Date.now() - sendStartedAt,
+      push: !!receivedPushDetail,
+    });
     return { ok: true, outcome: 'received' };
   } catch (err: any) {
-    appendDevDebugLlmLog({
+    instantTrace(sessionId, 'sse-catch', {
+      name: err?.name,
+      message: err?.message || String(err),
+      waitedMs: Date.now() - sendStartedAt,
+    });
+    appendDevDebugInstantPushLog({
       url: cfg.workerUrl,
       method: 'POST',
       status: 500,
@@ -1089,7 +1180,11 @@ export async function sendInstantPushAndAwaitReply(
     if (pageHideListenerAttached) {
       try { window.removeEventListener('pagehide', abortOnPageHide); } catch { /* ignore */ }
     }
+    if (visibilityListenerAttached) {
+      try { document.removeEventListener('visibilitychange', traceVisibilityChange); } catch { /* ignore */ }
+    }
     window.removeEventListener('active-msg-received', pushHandler);
+    instantTrace(sessionId, 'cleanup');
   }
 }
 

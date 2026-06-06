@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { querySwVersion } from '../utils/swVersion';
+import { BUILD_LABEL } from '../utils/buildInfo';
 
 /**
  * 构建版本指示器：右下角阶梯式堆三行
@@ -20,11 +21,10 @@ import { querySwVersion } from '../utils/swVersion';
  * 注：这是 dev / fork 专用的醒目角标。正式版（main/master）会被树摇掉，
  * 但构建 / SW 版本仍通过 Settings 底部的 VersionInfo 低调展示，方便用户报障。
  */
-
 const BuildBadge: React.FC = () => {
     if (!__BUILD_BADGE_VISIBLE__) return null;
 
-    const buildLabel = `${__BUILD_BRANCH__}@${__BUILD_COMMIT__}`;
+    const buildLabel = BUILD_LABEL;
     const [swVersion, setSwVersion] = useState<string>('…');
     const lineRefs = useRef<Array<HTMLSpanElement | null>>([]);
     const [widths, setWidths] = useState<number[] | null>(null);
