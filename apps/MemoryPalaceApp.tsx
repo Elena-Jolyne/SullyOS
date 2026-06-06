@@ -948,30 +948,29 @@ export default function MemoryPalaceApp() {
             return;
         }
 
-        // 重开全自动记忆时，先把聊天隐藏线对齐到向量高水位（hwm）。
-        // 关键修复：palace 向量化在 autoArchive 关闭期间会无条件推进 hwm，
-        // 但 hideBeforeMessageId 被 autoArchiveEnabled gate 冻结，于是出现
-        // 「向量已归档到最新、聊天却还停在上次开启时刻」的空档。
-        // 这些 id ≤ hwm 的消息不会被 unprocessedBufferCount（只数 id > hwm）统计到，
-        // 常规「立即追平」救不回——所以这里无条件把隐藏线补推到 hwm。
-        const { getMemoryPalaceHighWaterMark, getMemoryPalaceUnprocessedBufferCount } = await import('../utils/memoryPalace/pipeline');
-        const hwm = getMemoryPalaceHighWaterMark(charId);
-        const curHide = ((target as any).hideBeforeMessageId as number) || 0;
-        const alignedHide = Math.max(curHide, hwm);
-        updateCharacter(charId, {
-            autoArchiveEnabled: true,
-            ...(alignedHide > curHide ? { hideBeforeMessageId: alignedHide } : {}),
-        } as any);
+        updateCharacter(charId, { autoArchiveEnabled: true } as any);
+
+        // 重开全自动记忆：把高水位线回拨到当前隐藏线，让追平重新处理「空档段」。
+        // 背景：palace 向量化在 autoArchive 关闭期间无条件推进 hwm，但可读日度总结被 gate
+        // 冻结，于是 hideBeforeMessageId..hwm 之间形成「有向量、无日度总结」的空档。回拨后
+        // 这段重新进入缓冲区，追平会补回日度总结再推进 hide——避免「成功后顺带隐藏了没有
+        // 可读总结的旧消息」（用户不会自己解除 hide）。代价：空档段会重复向量化。
+        // 只在「确有空档」时回拨（隐藏线 > 0 且落后于 hwm）：隐藏线为 0 = 从没归档过，
+        // 那是首次全量归档场景，不在此处回拨以免意外重跑整段历史。
+        const { getMemoryPalaceHighWaterMark, getMemoryPalaceUnprocessedBufferCount, rewindMemoryPalaceHighWaterMark } = await import('../utils/memoryPalace/pipeline');
+        const hideLine = ((target as any).hideBeforeMessageId as number) || 0;
+        if (hideLine > 0 && getMemoryPalaceHighWaterMark(charId) > hideLine) {
+            rewindMemoryPalaceHighWaterMark(charId, hideLine);
+        }
 
         // 统计未同步消息数并决定是否立即追平历史
         // 口径必须和 pipeline 的缓冲区定义一致：排除热区（最后 200 条），
         // 否则会把"永远不会被处理"的热区也算成未同步，欺骗用户去点立即追平。
+        // 回拨后这里会把空档段一并计入，弹窗据此提示用户追平。
         const unprocessedCount = await getMemoryPalaceUnprocessedBufferCount(charId);
 
         if (unprocessedCount < 10) {
-            addToast(alignedHide > curHide
-                ? '全自动记忆已开启，已对齐隐藏线（自动隐藏了宫殿期间已归档的旧消息）'
-                : '全自动记忆已开启（历史消息都已同步）', 'success');
+            addToast('全自动记忆已开启（历史消息都已同步）', 'success');
             return;
         }
 
@@ -1011,10 +1010,7 @@ export default function MemoryPalaceApp() {
         try {
             const MAX_ROUNDS = 50;
             let accumulatedMemories = (target as any).memories ? [...(target as any).memories] : [];
-            // 起点取「当前隐藏线」与「向量高水位」的较大值：若从空档状态进来
-            //（hwm 已越过隐藏线），即便本轮 buffer 提早 break，最终 updateCharacter
-            // 也不会把隐藏线回退到旧值之下。
-            let latestHideBefore = Math.max((target as any).hideBeforeMessageId || 0, getMemoryPalaceHighWaterMark(charId));
+            let latestHideBefore = (target as any).hideBeforeMessageId;
             let totalProcessed = 0;
 
             for (let round = 1; round <= MAX_ROUNDS; round++) {
