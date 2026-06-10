@@ -2297,7 +2297,7 @@ const Settings: React.FC = () => {
                       </label>
                   </div>
                   <p className="text-[10px] text-blue-700/70 leading-relaxed">
-                      启用后，在聊天里点 + 号 → 第二页 → 瑞幸，发送"瑞幸请求"激活，角色就能为你查菜单、查门店、点自提/配送、用咖啡券、查订单。
+                      启用后，在聊天里点 + 号 → 第二页 → 瑞一杯，发送"瑞一杯"激活，角色就能为你查门店、搜咖啡、选规格、下单到店自提、查取餐码。
                   </p>
                   {luckinEnabled && (
                       <div className="space-y-2">

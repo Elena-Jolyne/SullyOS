@@ -123,8 +123,8 @@ export const inferCardKind = (toolName: string): LuckinCardKind => {
 
 // ========== 激活态从消息历史推导 ==========
 
-export const LUCKIN_ACTIVATE_TRIGGER = '瑞幸请求';
-export const LUCKIN_DEACTIVATE_TRIGGER = '结束瑞幸请求';
+export const LUCKIN_ACTIVATE_TRIGGER = '瑞一杯';
+export const LUCKIN_DEACTIVATE_TRIGGER = '结束瑞一杯';
 
 interface MsgLike {
     role: string;

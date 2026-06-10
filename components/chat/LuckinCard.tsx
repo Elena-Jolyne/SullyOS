@@ -123,8 +123,8 @@ const MenuItemRow: React.FC<MenuItemRowProps> = ({ item, qty, onAdd, onSub, onCa
     const showStepper = !!onAdd || !!onSub;
     const q = qty || 0;
     return (
-        <div className="flex gap-2 p-2 border-b border-blue-50 last:border-b-0">
-            <div className="w-14 h-14 rounded-lg bg-blue-50 overflow-hidden shrink-0 flex items-center justify-center">
+        <div className="flex gap-2 p-2 border-b border-[#F4EFE4] last:border-b-0">
+            <div className="w-14 h-14 rounded-lg bg-[#FAF7F0] overflow-hidden shrink-0 flex items-center justify-center">
                 {image ? (
                     <img src={image} alt="" className="w-full h-full object-cover" loading="lazy" referrerPolicy="no-referrer" onError={(e: any) => { e.target.style.display = 'none'; }} />
                 ) : (
@@ -137,13 +137,13 @@ const MenuItemRow: React.FC<MenuItemRowProps> = ({ item, qty, onAdd, onSub, onCa
                 {tags.length > 0 && (
                     <div className="flex gap-1 mt-0.5 flex-wrap">
                         {tags.slice(0, 2).map((t, j) => (
-                            <span key={j} className="text-[9px] px-1 py-px rounded bg-blue-100 text-blue-600">{t}</span>
+                            <span key={j} className="text-[9px] px-1 py-px rounded bg-[#F2ECDD] text-[#16386F]">{t}</span>
                         ))}
                     </div>
                 )}
                 <div className="flex items-center justify-between mt-1 gap-2">
                     {price != null
-                        ? <div className="text-[12px] font-bold text-blue-700">{fmtMoney(price)}</div>
+                        ? <div className="text-[12px] font-bold text-[#16386F]">{fmtMoney(price)}</div>
                         : <div className="flex-1" />}
                     <div className="flex items-center gap-1 shrink-0">
                         {onCandidate && (
@@ -151,22 +151,22 @@ const MenuItemRow: React.FC<MenuItemRowProps> = ({ item, qty, onAdd, onSub, onCa
                                 type="button"
                                 onClick={onCandidate}
                                 title="问问角色这个怎么样"
-                                className="px-1.5 py-0.5 rounded-md bg-white border border-blue-300 text-blue-700 text-[10px] font-bold active:scale-95 transition-transform"
+                                className="px-1.5 py-0.5 rounded-md bg-white border border-[#DDD3BC] text-[#16386F] text-[10px] font-bold active:scale-95 transition-transform"
                             >💭 问 ta</button>
                         )}
                         {showStepper && (
-                            <div className="flex items-center bg-white border border-blue-300 rounded-md overflow-hidden">
+                            <div className="flex items-center bg-white border border-[#DDD3BC] rounded-md overflow-hidden">
                                 <button
                                     type="button"
                                     onClick={onSub}
                                     disabled={q <= 0}
-                                    className={`w-6 h-6 flex items-center justify-center text-[14px] font-bold ${q <= 0 ? 'text-slate-300' : 'text-blue-700 active:bg-blue-100'}`}
+                                    className={`w-6 h-6 flex items-center justify-center text-[14px] font-bold ${q <= 0 ? 'text-slate-300' : 'text-[#16386F] active:bg-[#F2ECDD]'}`}
                                 >−</button>
                                 <span className="min-w-[20px] text-center text-[11px] font-bold text-slate-700">{q}</span>
                                 <button
                                     type="button"
                                     onClick={onAdd}
-                                    className="w-6 h-6 flex items-center justify-center text-[14px] font-bold text-blue-700 active:bg-blue-100"
+                                    className="w-6 h-6 flex items-center justify-center text-[14px] font-bold text-[#16386F] active:bg-[#F2ECDD]"
                                 >+</button>
                             </div>
                         )}
@@ -191,31 +191,31 @@ const OrderSummary: React.FC<{ data: any }> = ({ data }) => {
     return (
         <div className="space-y-2">
             <div className="flex items-center justify-between">
-                <span className="text-[10px] text-blue-700/70 font-bold uppercase">订单</span>
-                {status && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">{status}</span>}
+                <span className="text-[10px] text-[#16386F]/70 font-bold uppercase">订单</span>
+                {status && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#F2ECDD] text-[#16386F] font-bold">{status}</span>}
             </div>
             {orderId && <div className="text-[11px] text-slate-500 font-mono">#{orderId}</div>}
             {address && <div className="text-[10px] text-slate-500 line-clamp-2">📍 {address}</div>}
             {items && items.length > 0 && (
-                <div className="bg-white/70 rounded-lg overflow-hidden border border-blue-100">
+                <div className="bg-white/70 rounded-lg overflow-hidden border border-[#EFE9DC]">
                     {items.slice(0, 5).map((it, i) => <MenuItemRow key={i} item={it} />)}
                     {items.length > 5 && <div className="text-[10px] text-slate-400 text-center py-1.5">还有 {items.length - 5} 项…</div>}
                 </div>
             )}
             {total != null && (
-                <div className="flex items-center justify-between border-t border-blue-200/60 pt-1.5">
+                <div className="flex items-center justify-between border-t border-[#ECE6D8]/70 pt-1.5">
                     <span className="text-[11px] text-slate-600">合计</span>
-                    <span className="text-[14px] font-bold text-blue-700">{fmtMoney(total)}</span>
+                    <span className="text-[14px] font-bold text-[#16386F]">{fmtMoney(total)}</span>
                 </div>
             )}
             {takeCode && takeCode !== '生成中' && (
-                <div className="flex items-center justify-between bg-blue-50 rounded-lg px-2 py-1.5 border border-blue-100">
+                <div className="flex items-center justify-between bg-[#FAF7F0] rounded-lg px-2 py-1.5 border border-[#EFE9DC]">
                     <span className="text-[11px] text-slate-600">取餐码</span>
-                    <span className="text-[15px] font-black tracking-widest text-blue-700">{takeCode}</span>
+                    <span className="text-[15px] font-black tracking-widest text-[#B8860B]">{takeCode}</span>
                 </div>
             )}
             {(payUrl || qrUrl) && (
-                <a href={payUrl || qrUrl} target="_blank" rel="noreferrer" className="block text-center mt-1 px-3 py-1.5 bg-blue-600 text-white text-[11px] font-bold rounded-lg active:scale-95 transition-transform">去支付 →</a>
+                <a href={payUrl || qrUrl} target="_blank" rel="noreferrer" className="block text-center mt-1 px-3 py-1.5 bg-[#0B1F3A] text-white text-[11px] font-bold rounded-lg active:scale-95 transition-transform">去支付 →</a>
             )}
         </div>
     );
@@ -228,17 +228,17 @@ const StoreList: React.FC<{ data: any }> = ({ data }) => {
     if (!stores.length) return null;
     return (
         <div className="space-y-1.5">
-            <div className="text-[10px] text-blue-700/70 font-bold uppercase">附近门店</div>
+            <div className="text-[10px] text-[#16386F]/70 font-bold uppercase">附近门店</div>
             {stores.slice(0, 5).map((s, i) => {
                 const name = pickFirst<string>(s, ['deptName', 'name', 'storeName', 'shopName']) || '瑞幸门店';
                 const addr = pickFirst<string>(s, ['address', 'storeAddress', 'shopAddress']);
                 // 瑞幸 distance 单位是千米 (number, 如 8.2038)
                 const distance = pickFirst<any>(s, ['distance', 'distanceM']);
                 return (
-                    <div key={i} className="bg-white/70 rounded-lg p-2 border border-blue-100">
+                    <div key={i} className="bg-white/70 rounded-lg p-2 border border-[#EFE9DC]">
                         <div className="flex items-center justify-between">
                             <div className="font-bold text-[12px] text-slate-800 truncate">{name}</div>
-                            {distance != null && <div className="text-[10px] text-blue-700 shrink-0 ml-2">📍 {typeof distance === 'number' ? `${distance.toFixed(1)}km` : distance}</div>}
+                            {distance != null && <div className="text-[10px] text-[#16386F] shrink-0 ml-2">📍 {typeof distance === 'number' ? `${distance.toFixed(1)}km` : distance}</div>}
                         </div>
                         {addr && <div className="text-[10px] text-slate-500 line-clamp-2 mt-0.5">{addr}</div>}
                     </div>
@@ -306,7 +306,7 @@ const MenuList: React.FC<{ items: any[]; pageSize?: number; onSendCart?: (items:
 
     return (
         <div>
-            <div className="bg-white/70 rounded-lg overflow-hidden border border-blue-100">
+            <div className="bg-white/70 rounded-lg overflow-hidden border border-[#EFE9DC]">
                 {shown.map((it, idx) => {
                     const globalIdx = start + idx;
                     const k = itemKey(it, globalIdx);
@@ -321,41 +321,41 @@ const MenuList: React.FC<{ items: any[]; pageSize?: number; onSendCart?: (items:
                     />;
                 })}
                 {totalPages > 1 && (
-                    <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-t border-blue-100 bg-blue-50/40">
+                    <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-t border-[#EFE9DC] bg-[#FAF7F0]/60">
                         <button
                             type="button"
                             disabled={safePage === 0}
                             onClick={() => setPage(p => Math.max(0, p - 1))}
-                            className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold transition ${safePage === 0 ? 'text-slate-300' : 'text-blue-700 active:bg-blue-200/60 active:scale-90'}`}
+                            className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold transition ${safePage === 0 ? 'text-slate-300' : 'text-[#16386F] active:bg-[#EFE9DC] active:scale-90'}`}
                         >‹</button>
-                        <div className="text-[11px] text-blue-800 font-bold">
+                        <div className="text-[11px] text-[#0B1F3A] font-bold">
                             第 {safePage + 1} / {totalPages} 页
-                            <span className="text-[9px] text-blue-700/60 font-normal ml-1.5">（共 {items.length} 项）</span>
+                            <span className="text-[9px] text-[#16386F]/60 font-normal ml-1.5">（共 {items.length} 项）</span>
                         </div>
                         <button
                             type="button"
                             disabled={safePage >= totalPages - 1}
                             onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-                            className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold transition ${safePage >= totalPages - 1 ? 'text-slate-300' : 'text-blue-700 active:bg-blue-200/60 active:scale-90'}`}
+                            className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold transition ${safePage >= totalPages - 1 ? 'text-slate-300' : 'text-[#16386F] active:bg-[#EFE9DC] active:scale-90'}`}
                         >›</button>
                     </div>
                 )}
             </div>
             {onSendCart && totalCount > 0 && (
-                <div className="mt-2 flex items-center gap-2 bg-blue-100/80 rounded-lg p-2 border border-blue-300">
+                <div className="mt-2 flex items-center gap-2 bg-[#F2ECDD]/90 rounded-lg p-2 border border-[#DDD3BC]">
                     <div className="flex-1 min-w-0">
-                        <div className="text-[10px] text-blue-800/80">已选 {totalCount} 件</div>
-                        {totalPrice > 0 && <div className="text-[14px] font-bold text-blue-800">{fmtMoney(totalPrice)}</div>}
+                        <div className="text-[10px] text-[#0B1F3A]/70">已选 {totalCount} 件</div>
+                        {totalPrice > 0 && <div className="text-[14px] font-bold text-[#0B1F3A]">{fmtMoney(totalPrice)}</div>}
                     </div>
                     <button
                         type="button"
                         onClick={() => setSelected({})}
-                        className="text-[10px] text-blue-700 px-2 py-1.5 active:scale-95"
+                        className="text-[10px] text-[#16386F] px-2 py-1.5 active:scale-95"
                     >清空</button>
                     <button
                         type="button"
                         onClick={handleSend}
-                        className="px-3 py-1.5 bg-blue-600 text-white text-[11px] font-bold rounded-lg shadow active:scale-95 transition-transform"
+                        className="px-3 py-1.5 bg-[#0B1F3A] text-white text-[11px] font-bold rounded-lg shadow active:scale-95 transition-transform"
                     >发送给角色 →</button>
                 </div>
             )}
@@ -373,25 +373,25 @@ const CartCard: React.FC<{ items: LuckinCartItem[] }> = ({ items }) => {
     const totalCount = items.reduce((s, c) => s + c.qty, 0);
     return (
         <div className="space-y-2">
-            <div className="text-[10px] text-blue-700/80 font-bold uppercase">🛒 想要下单的内容</div>
-            <div className="bg-white/80 rounded-lg overflow-hidden border border-blue-200">
+            <div className="text-[10px] text-[#16386F]/80 font-bold uppercase">🛒 想要下单的内容</div>
+            <div className="bg-white/80 rounded-lg overflow-hidden border border-[#E6DFCF]">
                 {items.map((it, i) => (
-                    <div key={i} className="flex items-center gap-2 p-2 border-b border-blue-50 last:border-b-0">
-                        <div className="w-10 h-10 rounded-md bg-blue-50 overflow-hidden shrink-0 flex items-center justify-center">
+                    <div key={i} className="flex items-center gap-2 p-2 border-b border-[#F4EFE4] last:border-b-0">
+                        <div className="w-10 h-10 rounded-md bg-[#FAF7F0] overflow-hidden shrink-0 flex items-center justify-center">
                             {it.image ? <img src={it.image} alt="" className="w-full h-full object-cover" loading="lazy" referrerPolicy="no-referrer" onError={(e: any) => { e.target.style.display = 'none'; }} /> : <span className="text-lg">{luckinItemEmoji(it.name)}</span>}
                         </div>
                         <div className="flex-1 min-w-0">
                             <div className="font-bold text-[12px] text-slate-800 truncate">{it.name}</div>
                             {it.spec && <div className="text-[9px] text-slate-400 truncate">{it.spec}</div>}
-                            {it.price != null && <div className="text-[10px] text-blue-700">{fmtMoney(it.price)}</div>}
+                            {it.price != null && <div className="text-[10px] text-[#16386F]">{fmtMoney(it.price)}</div>}
                         </div>
-                        <div className="text-[12px] font-bold text-blue-700 shrink-0">×{it.qty}</div>
+                        <div className="text-[12px] font-bold text-[#16386F] shrink-0">×{it.qty}</div>
                     </div>
                 ))}
             </div>
             <div className="flex items-center justify-between pt-1">
                 <span className="text-[11px] text-slate-600">共 {totalCount} 件</span>
-                {total > 0 && <span className="text-[15px] font-bold text-blue-700">{fmtMoney(total)}</span>}
+                {total > 0 && <span className="text-[15px] font-bold text-[#16386F]">{fmtMoney(total)}</span>}
             </div>
         </div>
     );
@@ -404,19 +404,19 @@ const AddressList: React.FC<{ data: any }> = ({ data }) => {
     if (!list.length) return null;
     return (
         <div className="space-y-1.5">
-            <div className="text-[10px] text-blue-700/70 font-bold uppercase">📍 收货地址</div>
+            <div className="text-[10px] text-[#16386F]/70 font-bold uppercase">📍 收货地址</div>
             {list.slice(0, 5).map((a, i) => {
                 const name = pickFirst<string>(a, ['contactName', 'name', 'consignee', 'consigneeName']) || '收货人';
                 const phone = pickFirst<string>(a, ['phone', 'mobile', 'tel', 'contactPhone', 'consigneePhone']);
                 const addr = pickFirst<string>(a, ['fullAddress', 'address', 'detailAddress', 'consigneeAddress']);
                 const tag = pickFirst<string>(a, ['tag', 'label', 'addressTag', 'addressType']);
                 return (
-                    <div key={i} className="bg-white/70 rounded-lg p-2 border border-blue-100">
+                    <div key={i} className="bg-white/70 rounded-lg p-2 border border-[#EFE9DC]">
                         <div className="flex items-center justify-between">
                             <div className="font-bold text-[12px] text-slate-800 truncate">
                                 {name}{phone && <span className="text-[10px] text-slate-500 font-normal ml-1.5">{phone}</span>}
                             </div>
-                            {tag && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 shrink-0 ml-1">{tag}</span>}
+                            {tag && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#F2ECDD] text-[#16386F] shrink-0 ml-1">{tag}</span>}
                         </div>
                         {addr && <div className="text-[10px] text-slate-500 line-clamp-2 mt-0.5">{addr}</div>}
                     </div>
@@ -434,18 +434,18 @@ const CouponList: React.FC<{ data: any }> = ({ data }) => {
     if (!coupons.length) return null;
     return (
         <div className="space-y-1.5">
-            <div className="text-[10px] text-blue-700/70 font-bold uppercase">券</div>
+            <div className="text-[10px] text-[#16386F]/70 font-bold uppercase">券</div>
             {coupons.slice(0, 6).map((c, i) => {
                 const title = pickFirst<string>(c, ['title', 'name', 'couponName', 'goodsName']) || '瑞幸券';
                 const value = pickFirst<any>(c, ['value', 'amount', 'discountAmount', 'price', 'points']);
                 const expire = pickFirst<string>(c, ['expireDate', 'endTime', 'validTo', 'expireTime']);
                 return (
-                    <div key={i} className="flex items-center justify-between bg-white/70 rounded-lg p-2 border border-blue-100">
+                    <div key={i} className="flex items-center justify-between bg-white/70 rounded-lg p-2 border border-[#EFE9DC]">
                         <div className="min-w-0">
                             <div className="font-bold text-[12px] text-slate-800 truncate">🎟️ {title}</div>
                             {expire && <div className="text-[10px] text-slate-400">有效期至 {expire}</div>}
                         </div>
-                        {value != null && <div className="text-[12px] font-bold text-blue-700 shrink-0 ml-2">{typeof value === 'number' ? fmtMoney(value) : String(value)}</div>}
+                        {value != null && <div className="text-[12px] font-bold text-[#16386F] shrink-0 ml-2">{typeof value === 'number' ? fmtMoney(value) : String(value)}</div>}
                     </div>
                 );
             })}
@@ -463,11 +463,11 @@ const TextResultCard: React.FC<{ text: string; toolName: string }> = ({ text, to
         : /menu|product|商品|菜单/i.test(toolName) ? '菜单文本'
         : '文本结果';
     return (
-        <div className="bg-white/80 rounded-lg border border-blue-100 p-2.5">
-            <div className="text-[10px] text-blue-700/70 font-bold uppercase mb-1">{label}</div>
+        <div className="bg-white/80 rounded-lg border border-[#EFE9DC] p-2.5">
+            <div className="text-[10px] text-[#16386F]/70 font-bold uppercase mb-1">{label}</div>
             <pre className={`text-[10px] text-slate-700 leading-snug font-mono whitespace-pre-wrap break-all ${expanded ? '' : 'max-h-40 overflow-hidden'}`}>{expanded ? text : preview}</pre>
             {isLong && (
-                <button onClick={() => setExpanded(v => !v)} className="mt-1 text-[10px] text-blue-700 active:scale-95">
+                <button onClick={() => setExpanded(v => !v)} className="mt-1 text-[10px] text-[#16386F] active:scale-95">
                     {expanded ? '▲ 收起' : '▼ 展开全部'}
                 </button>
             )}
@@ -490,13 +490,13 @@ const EnvelopeNotice: React.FC<{ data: any }> = ({ data }) => {
     const code = data?.code ?? data?.errorCode;
     const traceId = data?.traceId;
     return (
-        <div className={`rounded-lg border p-3 ${ok ? 'bg-blue-50/60 border-blue-200' : 'bg-red-50/60 border-red-200'}`}>
+        <div className={`rounded-lg border p-3 ${ok ? 'bg-[#FAF7F0]/70 border-[#E6DFCF]' : 'bg-red-50/60 border-red-200'}`}>
             <div className="flex items-start gap-2">
                 <span className="text-xl shrink-0 leading-none mt-0.5">{ok ? 'ℹ️' : '⚠️'}</span>
                 <div className="flex-1 min-w-0">
-                    <div className={`font-bold text-[12px] ${ok ? 'text-blue-700' : 'text-red-600'}`}>{msg}</div>
+                    <div className={`font-bold text-[12px] ${ok ? 'text-[#16386F]' : 'text-red-600'}`}>{msg}</div>
                     {ok && (
-                        <div className="text-[10px] text-blue-600/80 mt-1 leading-relaxed">
+                        <div className="text-[10px] text-[#16386F]/80 mt-1 leading-relaxed">
                             瑞幸没返回内容。常见原因: 该门店此时段不营业 / 不支持当前模式 / 参数不对 / 服务临时抖动。可以换个门店或让角色重试。
                         </div>
                     )}
@@ -568,9 +568,9 @@ const UnrecognizedDiag: React.FC<{ data: any; rawText?: string; toolName: string
     };
 
     return (
-        <div className="bg-white/70 rounded-lg border-2 border-dashed border-sky-300">
+        <div className="bg-white/70 rounded-lg border-2 border-dashed border-[#DDD3BC]">
             <div className="px-2 pt-2 pb-1.5 flex items-center gap-1.5">
-                <span className="text-[9px] px-1.5 py-0.5 bg-sky-100 text-sky-700 rounded-full font-bold">⚠️ 未识别结构</span>
+                <span className="text-[9px] px-1.5 py-0.5 bg-[#F2ECDD] text-[#16386F] rounded-full font-bold">⚠️ 未识别结构</span>
                 <span className="text-[10px] text-slate-400 font-mono truncate">{toolName}</span>
             </div>
             <div className="px-2 pb-1.5 space-y-0.5 text-[10px] text-slate-600 font-mono leading-snug">
@@ -579,14 +579,14 @@ const UnrecognizedDiag: React.FC<{ data: any; rawText?: string; toolName: string
                 {diag.sample && <div className="break-all"><span className="text-slate-400">sample:</span> {diag.sample}</div>}
             </div>
             {fullJson && (
-                <div className="flex items-center border-t border-sky-200/60">
-                    <button onClick={() => setExpanded(v => !v)} className="flex-1 text-left px-2 py-1 text-[10px] text-sky-600 active:scale-[0.99]">
+                <div className="flex items-center border-t border-[#ECE6D8]/70">
+                    <button onClick={() => setExpanded(v => !v)} className="flex-1 text-left px-2 py-1 text-[10px] text-[#16386F] active:scale-[0.99]">
                         {expanded ? '▼ 收起原始' : '▶ 展开原始 JSON'}
                     </button>
                     <button
                         onClick={handleCopy}
-                        className={`px-2.5 py-1 text-[10px] font-bold border-l border-sky-200/60 active:scale-95 transition ${
-                            copyState === 'ok' ? 'text-emerald-600' : copyState === 'err' ? 'text-red-500' : 'text-sky-600'
+                        className={`px-2.5 py-1 text-[10px] font-bold border-l border-[#ECE6D8]/70 active:scale-95 transition ${
+                            copyState === 'ok' ? 'text-emerald-600' : copyState === 'err' ? 'text-red-500' : 'text-[#16386F]'
                         }`}
                     >
                         {copyState === 'ok' ? '✓ 已复制' : copyState === 'err' ? '× 失败' : '📋 复制'}
@@ -605,8 +605,8 @@ const UnrecognizedDiag: React.FC<{ data: any; rawText?: string; toolName: string
 const LuckinCard: React.FC<LuckinCardProps> = ({ toolName, args, result, error, rawText, kind = 'generic', onSendCart, onCandidate, cartItems, candidateItem }) => {
     if (kind === 'cart' && cartItems && cartItems.length) {
         return (
-            <div className="w-72 rounded-2xl overflow-hidden border border-blue-200 shadow-sm bg-gradient-to-br from-blue-50 to-sky-50">
-                <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-700 to-blue-500">
+            <div className="w-72 rounded-2xl overflow-hidden border border-[#E6DFCF] shadow-sm bg-gradient-to-br from-[#FAF7F0] to-[#F2EEE3]">
+                <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-[#0B1F3A] to-[#1E4D8C]">
                     <span className="text-lg">🛒</span>
                     <div className="flex-1 min-w-0">
                         <div className="text-[11px] font-bold text-white">瑞幸咖啡</div>
@@ -619,8 +619,8 @@ const LuckinCard: React.FC<LuckinCardProps> = ({ toolName, args, result, error, 
     }
     if (kind === 'candidate' && candidateItem) {
         return (
-            <div className="w-64 rounded-2xl overflow-hidden border border-blue-200 shadow-sm bg-gradient-to-br from-blue-50 to-sky-50">
-                <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-600 to-sky-500">
+            <div className="w-64 rounded-2xl overflow-hidden border border-[#E6DFCF] shadow-sm bg-gradient-to-br from-[#FAF7F0] to-[#F2EEE3]">
+                <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-[#0B1F3A] to-[#1E4D8C]">
                     <span className="text-lg">💭</span>
                     <div className="flex-1 min-w-0">
                         <div className="text-[11px] font-bold text-white">瑞幸咖啡</div>
@@ -628,14 +628,14 @@ const LuckinCard: React.FC<LuckinCardProps> = ({ toolName, args, result, error, 
                     </div>
                 </div>
                 <div className="p-3 flex items-center gap-2">
-                    <div className="w-12 h-12 rounded-md bg-blue-50 overflow-hidden shrink-0 flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-md bg-[#FAF7F0] overflow-hidden shrink-0 flex items-center justify-center">
                         {candidateItem.image
                             ? <img src={candidateItem.image} alt="" className="w-full h-full object-cover" loading="lazy" referrerPolicy="no-referrer" onError={(e: any) => { e.target.style.display = 'none'; }} />
                             : <span className="text-xl">{luckinItemEmoji(candidateItem.name)}</span>}
                     </div>
                     <div className="flex-1 min-w-0">
                         <div className="font-bold text-[12px] text-slate-800 truncate">{candidateItem.name}</div>
-                        {candidateItem.price != null && <div className="text-[11px] text-blue-700">{fmtMoney(candidateItem.price)}</div>}
+                        {candidateItem.price != null && <div className="text-[11px] text-[#16386F]">{fmtMoney(candidateItem.price)}</div>}
                     </div>
                 </div>
             </div>
@@ -670,9 +670,9 @@ const LuckinCard: React.FC<LuckinCardProps> = ({ toolName, args, result, error, 
     const itemsHaveDisplayFields = effectiveKind === 'menu' && (specializedHasItems || fallbackMenuHasItems);
 
     return (
-        <div className="w-72 rounded-2xl overflow-hidden border border-blue-200 shadow-sm bg-gradient-to-br from-blue-50 to-sky-50">
+        <div className="w-72 rounded-2xl overflow-hidden border border-[#E6DFCF] shadow-sm bg-gradient-to-br from-[#FAF7F0] to-[#F2EEE3]">
             {/* 头部: 瑞幸蓝条 */}
-            <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-700 to-blue-500">
+            <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-[#0B1F3A] to-[#1E4D8C]">
                 <span className="text-lg">🦌</span>
                 <div className="flex-1 min-w-0">
                     <div className="text-[11px] font-bold text-white">瑞幸咖啡</div>
@@ -681,7 +681,7 @@ const LuckinCard: React.FC<LuckinCardProps> = ({ toolName, args, result, error, 
                 {isError ? (
                     <span className="text-[9px] px-1.5 py-0.5 bg-red-100 text-red-600 rounded-full font-bold">失败</span>
                 ) : (
-                    <span className="text-[9px] px-1.5 py-0.5 bg-white/80 text-blue-900 rounded-full font-bold">已返回</span>
+                    <span className="text-[9px] px-1.5 py-0.5 bg-white/80 text-[#0B1F3A] rounded-full font-bold">已返回</span>
                 )}
             </div>
 
@@ -721,7 +721,7 @@ const LuckinCard: React.FC<LuckinCardProps> = ({ toolName, args, result, error, 
                 )}
                 {!isError && args && Object.keys(args).length > 0 && (
                     <details className="text-[9px] text-slate-400 font-mono">
-                        <summary className="cursor-pointer truncate select-none active:text-blue-700">
+                        <summary className="cursor-pointer truncate select-none active:text-[#16386F]">
                             参数: {Object.keys(args).join(', ')}
                         </summary>
                         <pre className="text-[10px] text-slate-600 mt-1 px-1 py-1 bg-slate-50/80 rounded overflow-auto max-h-40 whitespace-pre-wrap break-all">{(() => { try { return JSON.stringify(args, null, 2); } catch { return String(args); } })()}</pre>

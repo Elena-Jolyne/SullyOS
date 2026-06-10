@@ -2684,14 +2684,14 @@ const Chat: React.FC = () => {
                     </div>
                 )}
                 {luckinActivated && (
-                    <div className="flex items-center justify-between px-4 py-1.5 bg-blue-50 border-b border-blue-200 text-xs">
-                        <div className="flex items-center gap-1.5 text-blue-700 font-bold">
-                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"/>
-                            🦌 瑞幸请求进行中
+                    <div className="flex items-center justify-between px-4 py-1.5 bg-[#0B1F3A]/5 border-b border-[#0B1F3A]/15 text-xs">
+                        <div className="flex items-center gap-1.5 text-[#0B1F3A] font-bold">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#C6A15B] animate-pulse"/>
+                            🦌 瑞一杯进行中
                         </div>
                         <button
                           onClick={() => handleSendText(LUCKIN_DEACTIVATE_TRIGGER, 'text', { luckinDeactivate: true })}
-                          className="px-2.5 py-0.5 bg-blue-200/80 text-blue-800 rounded-full text-[11px] font-bold active:scale-95"
+                          className="px-2.5 py-0.5 bg-[#0B1F3A]/10 text-[#0B1F3A] rounded-full text-[11px] font-bold active:scale-95"
                         >
                           结束
                         </button>
