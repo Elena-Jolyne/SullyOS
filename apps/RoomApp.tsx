@@ -276,6 +276,8 @@ const RoomApp: React.FC = () => {
     const draggingIdRef = useRef<string | null>(null); // Non-reactive drag ID for perf
     const dragElementRef = useRef<HTMLElement | null>(null); // Direct DOM ref for dragged element
     const rafRef = useRef<number | null>(null); // requestAnimationFrame handle
+    const genItemRef = useRef<Set<string>>(new Set()); // 正在按需生成描写的物品 id（去重）
+    const lastLookRef = useRef<string | null>(null); // 用户最后查看的物品 id（生成回来时判断是否还盯着）
     const pendingDragPos = useRef<{ x: number, y: number } | null>(null); // Pending drag position
     const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null); // Debounce DB writes
     const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -479,6 +481,8 @@ const RoomApp: React.FC = () => {
     const initializeRoomState = async (c: CharacterProfile, currentItems: RoomItem[], force: boolean = false) => {
         if (!apiConfig.apiKey) return;
 
+        // 物品描写按需生成：先清掉上一个房间残留的描写，看到哪件再现生成哪件
+        setRoomDescriptions(c.savedRoomState?.items || {});
         setIsInitializing(true);
         const loadingTexts = [`正在打扫${c.name}的房间...`, "正在整理思绪...", "正在擦拭家具...", "正在生成全部物品记忆..."];
         let textIdx = 0;
@@ -517,14 +521,10 @@ const RoomApp: React.FC = () => {
 
             await injectMemoryPalace(c, recentMsgs);
             const baseContext = ContextBuilder.buildCoreContext(c, userProfile, true); // Keep Full Context
-            
-            // DEBUG FIX: Sanitize and truncate interactables context to prevent huge Base64 leakage
-            const interactables = currentItems.filter(i => i.isInteractive).map(i => ({ 
-                id: i.id, 
-                name: i.name, 
-                context: (i.descriptionPrompt || '').substring(0, 200) 
-            }));
 
+            // PERF: 进房间只生成「迎接 + 状态 + 待办 + 随笔」这点轻量内容，秒回。
+            // 每件物品的描写/反应改成「看的时候再现生成」(generateItemDescription)——
+            // 进门不再为满屋家具一次性憋一大段，API 调用时间大幅缩短。
             let prompt = `${baseContext}
 
 ### [Environment Context - Critical]
@@ -533,25 +533,17 @@ const RoomApp: React.FC = () => {
 **最近互动记录 (Latest 50)**:
 ${chatContext}
 
-### [Room Initialization - Batch Generation]
-用户进入了**你的**房间。请一次性生成房间的状态、物品交互文本，以及（如果需要）你今天的计划和随笔。
+### [Room Initialization]
+用户进入了**你的**房间。请生成房间的状态、迎接语，以及（如果需要）你今天的计划和随笔。
 
 ### 1. 房间状态 (Status)
 - **ActorStatus**: 你现在在房间里做什么？(请严格基于当前时间${nowTimeStr}和时间差${timeGapHint}来推断。如果是深夜可能在睡觉，如果很久没见可能在发呆。)
 - **Welcome**: 看到用户进来，你第一句话说什么？(请结合时间差：如果很久没见，是惊讶、想念还是生气？)
 
-### 2. 物品交互 (Items)
-房间里有以下物品：
-${JSON.stringify(interactables)}
-
-请为**每一个**物品生成：
-- **Description**: 旁白视角的物品外观/状态描写。
-- **Reaction**: 当用户查看这个物品时，你(角色)的吐槽或反应。
-
-### 3. [OPTIONAL] 今日待办清单 (Daily To-Do)
+### 2. [OPTIONAL] 今日待办清单 (Daily To-Do)
 ${!shouldGenerateTodo ? `(系统: 今日待办已存在，无需生成，请忽略此项)` : `(系统: 请生成 3-5 条你今天打算做的事。)`}
 
-### 4. 记事簿随笔 (Notebook Entry)
+### 3. 记事簿随笔 (Notebook Entry)
 请在你的私密记事簿上写点什么。
 **要求**：
 1. **风格多变**：可以是刚写的歌词、随笔感悟、心情记录、或者是一首短诗、一份购物清单。
@@ -563,9 +555,6 @@ ${!shouldGenerateTodo ? `(系统: 今日待办已存在，无需生成，请忽�
 {
   "actorStatus": "...",
   "welcomeMessage": "...",
-  "items": {
-    "item_id": { "description": "...", "reaction": "..." }
-  },
   ${shouldGenerateTodo ? `"todoList": ["task 1", "task 2"],` : ''}
   "notebookEntry": { "content": "markdown string...", "type": "thought" }
 }
@@ -579,10 +568,10 @@ ${!shouldGenerateTodo ? `(系统: 今日待办已存在，无需生成，请忽�
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiConfig.apiKey}` },
                 body: JSON.stringify({ 
-                    model: apiConfig.model, 
-                    messages: [{ role: "user", content: prompt }], 
+                    model: apiConfig.model,
+                    messages: [{ role: "user", content: prompt }],
                     temperature: 0.5, // Lower temp for stability
-                    max_tokens: 8000,
+                    max_tokens: 2000, // PERF: 物品描写改为按需生成后，进门只出迎接/状态/待办/随笔，token 大减
                     // Safety Settings injection for Gemini-based proxies
                     safetySettings: [
                         { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
@@ -618,7 +607,8 @@ ${!shouldGenerateTodo ? `(系统: 今日待办已存在，无需生成，请忽�
                     savedRoomState: {
                         actorStatus: result.actorStatus,
                         welcomeMessage: result.welcomeMessage,
-                        items: result.items || {},
+                        // 物品描写按需生成，这里别用空对象覆盖掉已有的（保留之前现生成/缓存的）
+                        items: result.items || c.savedRoomState?.items || {},
                         actorAction: 'idle'
                     }
                 });
@@ -679,10 +669,55 @@ ${!shouldGenerateTodo ? `(系统: 今日待办已存在，无需生成，请忽�
         }
     };
 
+    // 按需生成单件物品的描写/反应（看的时候才现生成，进门不再一次性全憋）。
+    // 非阻塞：先显示占位，生成回来后若用户还盯着这件，再把气泡补上。
+    const generateItemDescription = async (c: CharacterProfile, item: RoomItem) => {
+        if (!apiConfig.apiKey) return;
+        if (genItemRef.current.has(item.id)) return;        // 同一件正在生成，别重复发
+        genItemRef.current.add(item.id);
+        try {
+            const baseContext = ContextBuilder.buildCoreContext(c, userProfile, false);
+            const prompt = `${baseContext}
+
+用户正在你的房间里查看这件物品：「${item.name}」${item.descriptionPrompt ? `（设定：${item.descriptionPrompt.substring(0, 200)}）` : ''}。
+只为这一件物品生成 JSON，严禁输出 JSON 以外的任何内容：
+{ "description": "旁白视角对它外观/此刻状态的描写（1~2句）", "reaction": "用户盯着它看时，你（${c.name}）的吐槽或反应（1句，符合你的人设）" }`;
+            const response = await fetch(`${apiConfig.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiConfig.apiKey}` },
+                body: JSON.stringify({ model: apiConfig.model, messages: [{ role: 'user', content: prompt }], temperature: 0.7, max_tokens: 400 }),
+            });
+            if (!response.ok) return;
+            const data = await safeResponseJson(response);
+            let content = (data.choices?.[0]?.message?.content || '').replace(/```json/g, '').replace(/```/g, '').trim();
+            const fb = content.indexOf('{'), lb = content.lastIndexOf('}');
+            if (fb !== -1 && lb !== -1) content = content.substring(fb, lb + 1);
+            const res = JSON.parse(content);
+            const entry = {
+                description: (res.description || `${item.name}静静地摆放在那里。`).toString(),
+                reaction: (res.reaction || '(盯...)').toString(),
+            };
+            setRoomDescriptions(prev => {
+                const next = { ...prev, [item.id]: entry };
+                // 落库，今天再进同一房间就不用重新生成
+                updateCharacter(c.id, { savedRoomState: { ...(c.savedRoomState as any), items: next } });
+                return next;
+            });
+            // 用户若还盯着这件，把刚生成的补到画面上
+            if (lastLookRef.current === item.id) {
+                setObservationText(entry.description);
+                setAiBubble({ text: entry.reaction, visible: true });
+            }
+        } catch { /* 生成失败就维持占位文案，不打扰用户 */ } finally {
+            genItemRef.current.delete(item.id);
+        }
+    };
+
     const handleLookAt = async (item: RoomItem, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
         if (mode === 'edit') { setSelectedItemId(item.id); return; }
         if (!char) return;
+        lastLookRef.current = item.id;
         
         // Character Movement Constraint: Keep feet below horizon line
         // FIX: Place actor visually "In Front" of furniture (lower Y = closer to camera in 2.5D top-down)
@@ -705,6 +740,11 @@ ${!shouldGenerateTodo ? `(系统: 今日待办已存在，无需生成，请忽�
                     await DB.saveMessage({ charId: char.id, role: 'system', type: 'text', content: contentToCheck }); 
                 } catch (err) {}
             }
+        } else if (item.isInteractive) {
+            // 没有现成描写 → 先给占位，后台现生成（回来若还盯着这件会自动补上）
+            setObservationText(`${item.name}静静地摆放在那里。`);
+            setAiBubble({ text: "(观察中…)", visible: true });
+            void generateItemDescription(char, item);
         } else {
             setObservationText(`${item.name}静静地摆放在那里。`);
             setAiBubble({ text: "(盯...)", visible: true });
@@ -1067,45 +1107,35 @@ ${!shouldGenerateTodo ? `(系统: 今日待办已存在，无需生成，请忽�
                         </span>
                         <div className="w-8"></div>
                     </div>
-                    {/* Tab 切换：房间 / 像素家园 / 家园（三个独立分区） */}
-                    <div className="flex gap-1 mt-2 bg-slate-100 rounded-xl p-1">
-                        <button
-                            onClick={() => setHomeTab('room')}
-                            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-                                homeTab === 'room' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-400'
-                            }`}
-                        >
-                            🏠 小小窝
-                        </button>
-                        <button
-                            onClick={() => setHomeTab('pixelHome')}
-                            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-                                homeTab === 'pixelHome' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-400'
-                            }`}
-                        >
-                            🎮 像素家园
-                        </button>
-                        <button
-                            onClick={() => setHomeTab('worldHome')}
-                            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-                                homeTab === 'worldHome' ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-400'
-                            }`}
-                        >
-                            🌍 家园
-                        </button>
+                    {/* Tab 切换：小小窝 / 家园 / 像素家园（三个独立分区；家园放前面，用得多） */}
+                    <div className="flex gap-1 mt-2.5 bg-slate-100 rounded-xl p-1">
+                        {([
+                            { id: 'room', label: '🏠 小小窝' },
+                            { id: 'worldHome', label: '🌍 家园' },
+                            { id: 'pixelHome', label: '🎮 像素家园' },
+                        ] as const).map(tab => (
+                            <button key={tab.id}
+                                onClick={() => setHomeTab(tab.id)}
+                                className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                                    homeTab === tab.id ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-400 hover:text-slate-500'
+                                }`}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
                 {homeTab === 'worldHome' ? (
                     /* 家园分区：另一套体系（同世界观多角色共同生活的大世界），单独成区，点进去全屏打开 */
-                    <div className="p-6 overflow-y-auto pb-20 no-scrollbar">
+                    <div className="p-5 overflow-y-auto pb-20 no-scrollbar">
                         <button onClick={() => openApp(AppID.WorldHome)}
-                            className="w-full text-left rounded-3xl overflow-hidden shadow-[0_10px_30px_rgba(20,30,60,.25)] active:scale-[0.99] transition-transform border border-white/60">
-                            <div className="relative px-5 py-7" style={{ background: 'linear-gradient(150deg,#16203e 0%,#23315c 55%,#2c4a4f 100%)' }}>
+                            className="w-full text-left rounded-3xl overflow-hidden shadow-[0_12px_34px_rgba(20,30,60,.28)] active:scale-[0.99] transition-transform border border-white/60">
+                            <div className="relative px-5 py-8" style={{ background: 'linear-gradient(150deg,#16203e 0%,#23315c 55%,#2c4a4f 100%)' }}>
                                 <div className="absolute inset-0 pointer-events-none animate-pulse" style={{ backgroundImage: 'radial-gradient(1.5px 1.5px at 18% 30%,#fff,transparent),radial-gradient(1px 1px at 70% 24%,#ffe9b0,transparent),radial-gradient(1.5px 1.5px at 44% 62%,#cfe2ff,transparent),radial-gradient(1px 1px at 86% 56%,#fff,transparent)' }} />
                                 <div className="relative">
                                     <div className="text-[9px] font-black tracking-[0.4em] text-amber-300/80 uppercase">World · Home</div>
-                                    <div className="text-[26px] font-black text-white tracking-[0.18em] mt-1" style={{ textShadow: '0 2px 14px rgba(255,200,100,.25)' }}>家　园</div>
-                                    <p className="text-[11px] leading-[1.8] text-indigo-100/70 mt-2.5">
+                                    <div className="text-[27px] font-black text-white tracking-[0.18em] mt-1" style={{ textShadow: '0 2px 14px rgba(255,200,100,.25)' }}>家　园</div>
+                                    <p className="text-[11px] leading-[1.85] text-indigo-100/70 mt-2.5">
                                         把同一世界观的角色放进一个世界，让他们在你不看的时候慢慢生活。
                                         每次<b className="text-amber-200">观测</b>推进半天，每个角色独立演绎，绝不上帝视角。
                                     </p>
@@ -1113,33 +1143,43 @@ ${!shouldGenerateTodo ? `(系统: 今日待办已存在，无需生成，请忽�
                                 </div>
                             </div>
                         </button>
-                        <p className="text-[10.5px] text-slate-400 leading-relaxed mt-3 px-1">
+                        <p className="text-[10.5px] text-slate-400 leading-relaxed mt-3.5 px-1">
                             家园和「房间 / 像素家园」是两套独立的玩法：这里管理的是多角色共同生活的大世界，不绑定单个角色。
                         </p>
                     </div>
                 ) : (
-                    <div className="p-6 grid grid-cols-2 gap-4 overflow-y-auto pb-20 no-scrollbar">
-                        {characters.map(c => (
-                            <div key={c.id} onClick={() => {
-                                if (homeTab === 'pixelHome') {
-                                    setActiveCharacterId(c.id);
-                                    setViewState('pixelHome');
-                                } else {
-                                    handleEnterRoom(c);
-                                }
-                            }} className="min-h-[180px] bg-white rounded-2xl shadow-sm border border-slate-100 p-4 flex flex-col items-center justify-center gap-3 cursor-pointer active:scale-95 transition-all relative overflow-hidden group hover:shadow-md">
-                                <div className="w-20 h-20 rounded-full p-1 border-2 border-slate-100 relative">
-                                    <img src={c.avatar} className="w-full h-full rounded-full object-cover" />
-                                    <div className="absolute bottom-0 right-0 w-6 h-6 bg-green-400 rounded-full border-2 border-white flex items-center justify-center">
-                                        {homeTab === 'pixelHome'
-                                            ? <span className="text-[10px]">🎮</span>
-                                            : <img src={twemojiUrl('1f3e0')} alt="home" className="w-3 h-3" />
-                                        }
-                                    </div>
-                                </div>
-                                <span className="font-bold text-slate-700 text-sm">{c.name}</span>
+                    <div className="px-5 pt-3 overflow-y-auto pb-20 no-scrollbar">
+                        <p className="text-[11px] text-slate-400 mb-3 px-1 leading-relaxed">
+                            {homeTab === 'room'
+                                ? '走进谁的房间，看看 ta 此刻在做什么、翻翻屋里的小物件。'
+                                : '像素风的家——自由装修、布置房间、潜入记忆。'}
+                        </p>
+                        {characters.length === 0 ? (
+                            <div className="text-center text-slate-400 text-[12px] py-16">还没有角色，先去「神经链接」创建一个吧。</div>
+                        ) : (
+                            <div className="grid grid-cols-2 gap-3.5">
+                                {characters.map(c => {
+                                    const pixel = homeTab === 'pixelHome';
+                                    return (
+                                        <button key={c.id} onClick={() => {
+                                            if (pixel) { setActiveCharacterId(c.id); setViewState('pixelHome'); }
+                                            else { handleEnterRoom(c); }
+                                        }} className="group relative bg-white rounded-2xl shadow-sm border border-slate-100 pt-14 pb-4 px-3 flex flex-col items-center gap-1.5 active:scale-95 transition-all hover:shadow-md hover:-translate-y-0.5 overflow-hidden">
+                                            {/* 顶部分区色带 */}
+                                            <div className="absolute inset-x-0 top-0 h-14" style={{ background: pixel ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : 'linear-gradient(135deg,#fb7185,#f472b6)' }} />
+                                            <div className="absolute top-5 left-1/2 -translate-x-1/2 w-[68px] h-[68px] rounded-full p-1 bg-white shadow-md">
+                                                <img src={c.avatar} className="w-full h-full rounded-full object-cover" />
+                                                <div className="absolute bottom-0 right-0 w-6 h-6 bg-white rounded-full shadow flex items-center justify-center text-[12px]">
+                                                    {pixel ? '🎮' : '🏠'}
+                                                </div>
+                                            </div>
+                                            <span className="font-bold text-slate-700 text-sm mt-1">{c.name}</span>
+                                            <span className="text-[10px] text-slate-400">{pixel ? '进 ta 的像素家园' : '拜访 ta 的房间'}</span>
+                                        </button>
+                                    );
+                                })}
                             </div>
-                        ))}
+                        )}
                     </div>
                 )}
             </div>
@@ -1185,10 +1225,13 @@ ${!shouldGenerateTodo ? `(系统: 今日待办已存在，无需生成，请忽�
     return (
         <div className="h-full w-full bg-[#f8fafc] flex flex-col relative overflow-hidden font-sans select-none">
             
+            {/* 进门不再全屏拦截——直接进房间，迎接语在后台生成好就补上，期间顶部一个小提示条 */}
             {isInitializing && (
-                <div className="absolute inset-0 z-[500] bg-white flex flex-col items-center justify-center animate-fade-in">
-                    <div className="text-4xl mb-4 animate-bounce"><Door size={48} className="text-slate-400" /></div>
-                    <p className="text-sm font-bold text-slate-500">{initStatusText}</p>
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[500] pointer-events-none animate-fade-in">
+                    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/85 backdrop-blur shadow-md border border-slate-200">
+                        <Door size={14} className="text-slate-400 animate-bounce" />
+                        <span className="text-[11px] font-bold text-slate-500">{initStatusText}</span>
+                    </div>
                 </div>
             )}
 
