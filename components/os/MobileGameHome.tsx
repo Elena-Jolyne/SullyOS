@@ -123,12 +123,12 @@ const MobileGameHome: React.FC = () => {
     const cardShadow = '0 8px 28px rgba(40,12,70,0.35), inset 0 1px 0 rgba(255,255,255,0.12)';
 
     const Pill: React.FC<{ icon: React.ReactNode; value: string }> = ({ icon, value }) => (
-        <div className="flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-full"
-            style={{ background: 'rgba(30,16,54,0.5)', border: '1px solid rgba(214,188,255,0.3)' }}>
+        <div className="flex items-center gap-1 pl-1.5 pr-1 py-[3px] rounded-full w-[90px]"
+            style={{ background: 'rgba(30,16,54,0.55)', border: '1px solid rgba(214,188,255,0.32)', boxShadow: '0 2px 8px rgba(20,6,46,0.3)' }}>
             {icon}
-            <span className="text-[12px] font-extrabold tabular-nums text-white drop-shadow">{value}</span>
-            <span className="w-4 h-4 rounded-full flex items-center justify-center text-[11px] font-bold leading-none text-white"
-                style={{ background: 'rgba(255,255,255,0.18)' }}>+</span>
+            <span className="flex-1 text-right text-[12px] font-extrabold tabular-nums text-white drop-shadow">{value}</span>
+            <span className="w-[18px] h-[18px] rounded-full flex items-center justify-center text-[12px] font-bold leading-none text-white shrink-0"
+                style={{ background: 'rgba(255,255,255,0.2)' }}>+</span>
         </div>
     );
 
@@ -149,20 +149,20 @@ const MobileGameHome: React.FC = () => {
                 className="relative h-full overflow-y-auto no-scrollbar px-5"
                 style={{ paddingTop: 'calc(var(--safe-top, 0px) + 1rem)', paddingBottom: '7.5rem' }}
             >
-                {/* ===== 顶部角色卡 ===== */}
+                {/* ===== 顶部：角色卡（左） + 货币竖列（右）===== */}
                 <div className="flex items-start gap-3 animate-fade-in">
-                    {/* 头像 + 等级 */}
-                    <div className="relative shrink-0" onClick={() => openApp(AppID.Character)}>
-                        <div className="w-[68px] h-[68px] rounded-full p-[2.5px] cursor-pointer active:scale-95 transition-transform"
-                            style={{ background: 'linear-gradient(135deg, #f0abfc, #818cf8, #67e8f9)', boxShadow: '0 0 16px rgba(192,132,252,0.55)' }}>
+                    {/* 头像 + 等级绶带 */}
+                    <div className="relative shrink-0 mt-0.5" onClick={() => openApp(AppID.Character)}>
+                        <div className="w-[72px] h-[72px] rounded-full p-[2.5px] cursor-pointer active:scale-95 transition-transform"
+                            style={{ background: 'linear-gradient(135deg, #f0abfc, #818cf8, #67e8f9)', boxShadow: '0 0 18px rgba(192,132,252,0.6)' }}>
                             <div className="w-full h-full rounded-full overflow-hidden bg-[#2a1840] border-2 border-[#1c0f33]">
                                 {widgetChar?.avatar
                                     ? <img src={widgetChar.avatar} className="w-full h-full object-cover" alt="char" loading="lazy" />
                                     : <div className="w-full h-full flex items-center justify-center text-2xl">✦</div>}
                             </div>
                         </div>
-                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-2 py-[1px] rounded-full text-[10px] font-black tracking-wide whitespace-nowrap"
-                            style={{ background: 'linear-gradient(135deg,#fbbf24,#f59e0b)', color: '#3a1d00', boxShadow: '0 2px 6px rgba(0,0,0,0.3)' }}>
+                        <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 px-2.5 py-[2px] rounded-md text-[10px] font-black tracking-wide whitespace-nowrap"
+                            style={{ background: 'linear-gradient(135deg,#fbbf24,#f59e0b)', color: '#3a1d00', boxShadow: '0 2px 8px rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.45)' }}>
                             Lv.{stats.level}
                         </div>
                     </div>
@@ -170,42 +170,42 @@ const MobileGameHome: React.FC = () => {
                     {/* 名字 + 标语 + 经验条 */}
                     <div className="flex-1 min-w-0 pt-0.5">
                         <div className="flex items-center gap-2">
-                            <h2 className="text-lg font-black truncate drop-shadow-md">{charName}</h2>
-                            <span className="flex items-center gap-1 px-1.5 py-px rounded-full text-[8px] font-bold tracking-[0.12em]"
+                            <h2 className="text-[19px] font-black truncate drop-shadow-md">{charName}</h2>
+                            <span className="flex items-center gap-1 px-1.5 py-px rounded-full text-[8px] font-bold tracking-[0.12em] shrink-0"
                                 style={{ background: 'rgba(74,222,128,0.2)', border: '1px solid rgba(74,222,128,0.4)' }}>
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" style={{ boxShadow: '0 0 6px #4ade80' }} />
                                 ONLINE
                             </span>
                         </div>
-                        <p className="text-[11px] leading-snug mt-0.5 line-clamp-2 opacity-80">{tagline}</p>
+                        <p className="text-[11px] leading-snug mt-1 line-clamp-2 opacity-80">{tagline}</p>
                         {/* EXP */}
                         <div className="flex items-center gap-2 mt-2">
                             <span className="text-[9px] font-black tracking-widest opacity-70">EXP</span>
                             <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(20,10,38,0.6)', border: '1px solid rgba(214,188,255,0.25)' }}>
                                 <div className="h-full rounded-full" style={{ width: `${expPct}%`, background: 'linear-gradient(90deg,#f472b6,#a78bfa,#67e8f9)', boxShadow: '0 0 8px rgba(167,139,250,0.7)' }} />
                             </div>
-                            <span className="text-[9px] font-bold tabular-nums opacity-75">{stats.exp}/{stats.expMax}</span>
+                            <span className="text-[9px] font-bold tabular-nums opacity-75 whitespace-nowrap">{stats.exp} / {stats.expMax}</span>
                         </div>
                     </div>
-                </div>
 
-                {/* ===== 货币栏 + 菜单 ===== */}
-                <div className="flex items-center justify-end gap-2 mt-3 animate-fade-in">
-                    <Pill
-                        icon={<svg viewBox="0 0 24 24" className="w-3.5 h-3.5"><path d="M6 3h12l3 5-9 13L3 8z" fill="#67e8f9" stroke="#22d3ee" strokeWidth="1" strokeLinejoin="round" /></svg>}
-                        value={stats.gems.toLocaleString()}
-                    />
-                    <Pill
-                        icon={<svg viewBox="0 0 24 24" className="w-3.5 h-3.5"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17.8 5.9 20.4l1.5-6.8L2.2 9l6.9-.7z" fill="#fbbf24" stroke="#f59e0b" strokeWidth="0.8" strokeLinejoin="round" /></svg>}
-                        value={stats.stars.toString()}
-                    />
-                    <button onClick={() => openApp(AppID.Appearance)} aria-label="菜单"
-                        className="w-9 h-9 rounded-full flex flex-col items-center justify-center gap-[3px] active:scale-90 transition-transform"
-                        style={{ background: 'rgba(30,16,54,0.5)', border: '1px solid rgba(214,188,255,0.3)' }}>
-                        <span className="w-4 h-[2px] rounded-full bg-white/85" />
-                        <span className="w-4 h-[2px] rounded-full bg-white/85" />
-                        <span className="w-4 h-[2px] rounded-full bg-white/85" />
-                    </button>
+                    {/* 货币竖列 + 菜单 */}
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        <Pill
+                            icon={<svg viewBox="0 0 24 24" className="w-3.5 h-3.5 shrink-0"><path d="M6 3h12l3 5-9 13L3 8z" fill="#67e8f9" stroke="#22d3ee" strokeWidth="1" strokeLinejoin="round" /></svg>}
+                            value={stats.gems.toLocaleString()}
+                        />
+                        <Pill
+                            icon={<svg viewBox="0 0 24 24" className="w-3.5 h-3.5 shrink-0"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17.8 5.9 20.4l1.5-6.8L2.2 9l6.9-.7z" fill="#fbbf24" stroke="#f59e0b" strokeWidth="0.8" strokeLinejoin="round" /></svg>}
+                            value={stats.stars.toString()}
+                        />
+                        <button onClick={() => openApp(AppID.Appearance)} aria-label="菜单"
+                            className="w-9 h-9 rounded-full flex flex-col items-center justify-center gap-[3px] active:scale-90 transition-transform mt-0.5"
+                            style={{ background: 'rgba(30,16,54,0.5)', border: '1px solid rgba(214,188,255,0.3)' }}>
+                            <span className="w-4 h-[2px] rounded-full bg-white/85" />
+                            <span className="w-4 h-[2px] rounded-full bg-white/85" />
+                            <span className="w-4 h-[2px] rounded-full bg-white/85" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* ===== 时钟 ===== */}
@@ -240,6 +240,13 @@ const MobileGameHome: React.FC = () => {
                         </div>
                         <p className="text-[11px] leading-relaxed opacity-80 line-clamp-2">{announcement}</p>
                     </div>
+                    {/* 公告缩略图（角色立绘）*/}
+                    <div className="w-14 h-14 shrink-0 rounded-xl overflow-hidden"
+                        style={{ border: '1px solid rgba(214,188,255,0.35)', boxShadow: '0 3px 10px rgba(20,6,46,0.35)' }}>
+                        {widgetChar?.avatar
+                            ? <img src={widgetChar.avatar} className="w-full h-full object-cover" alt="" loading="lazy" />
+                            : <div className="w-full h-full flex items-center justify-center text-lg" style={{ background: 'rgba(255,255,255,0.08)' }}>✦</div>}
+                    </div>
                     <div className="w-7 h-7 shrink-0 rounded-full flex items-center justify-center"
                         style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.18)' }}>
                         <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
@@ -271,19 +278,20 @@ const MobileGameHome: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3 mt-4">
                     {GRID_CARDS.map(card => (
                         <button key={card.id} onClick={() => openApp(card.id)}
-                            className="relative h-24 rounded-2xl p-3.5 flex flex-col justify-between text-left overflow-hidden active:scale-[0.97] transition-transform animate-fade-in"
+                            className="relative h-28 rounded-2xl p-3.5 flex flex-col text-left overflow-hidden active:scale-[0.97] transition-transform animate-fade-in"
                             style={{ background: cardBg, border: cardBorder, boxShadow: cardShadow, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}>
-                            <div className="absolute -right-3 -bottom-3 w-16 h-16 opacity-25 rotate-12 text-white pointer-events-none">
+                            {/* 角落星标装饰 */}
+                            <span className="absolute top-1.5 left-2 text-[10px] leading-none text-[#67e8f9] opacity-70">✦</span>
+                            <span className="absolute top-1.5 right-2 text-[10px] leading-none text-[#f0abfc] opacity-70">✦</span>
+                            <span className="absolute bottom-1.5 left-2 text-[8px] leading-none text-white opacity-30">✦</span>
+                            {/* 大插画（应用图标，半透明铺在右下）*/}
+                            <div className="absolute right-1.5 bottom-1 w-[5.5rem] h-[5.5rem] opacity-40 -rotate-6 text-white pointer-events-none drop-shadow-[0_4px_10px_rgba(0,0,0,0.3)]">
                                 {renderGlyph(INSTALLED_APPS.find(a => a.id === card.id)?.icon || 'Settings', 'w-full h-full')}
                             </div>
-                            <div className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full" style={{ background: '#67e8f9', boxShadow: '0 0 8px #67e8f9' }} />
-                            <div className="relative">
-                                <div className="text-[17px] font-black drop-shadow">{card.cn}</div>
-                                <div className="text-[9px] font-bold tracking-[0.2em] opacity-55 mt-0.5">{card.en}</div>
-                            </div>
-                            <div className="relative w-7 h-7 rounded-lg flex items-center justify-center"
-                                style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)' }}>
-                                <div className="w-4 h-4 text-white">{renderGlyph(INSTALLED_APPS.find(a => a.id === card.id)?.icon || 'Settings', 'w-full h-full')}</div>
+                            {/* 文字 */}
+                            <div className="relative mt-0.5">
+                                <div className="text-[18px] font-black drop-shadow leading-tight">{card.cn}</div>
+                                <div className="text-[9px] font-bold tracking-[0.25em] opacity-55 mt-1">{card.en}</div>
                             </div>
                         </button>
                     ))}
