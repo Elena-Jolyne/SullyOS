@@ -5,7 +5,7 @@ import { safeFetchJson } from '../utils/safeApi';
 import { minimaxFetch } from '../utils/minimaxEndpoint';
 import { resolveMiniMaxApiKey } from '../utils/minimaxApiKey';
 import { hashTtsParams, getCachedTts, saveCachedTts } from '../utils/ttsCache';
-import { cleanTextForTts, insertSpeechBreaks, convertHexAudioToBlob, fetchRemoteAudioBlob, VALID_EMOTIONS, stripEmotionTags } from '../utils/minimaxTts';
+import { cleanTextForTts, insertSpeechBreaks, convertHexAudioToBlob, fetchRemoteAudioBlob, VALID_EMOTIONS, stripEmotionTags, VOICE_ACTING_GUIDE, cleanVoiceMarkupForDisplay } from '../utils/minimaxTts';
 import { startStt, isSttSupported, type SttSession } from '../utils/speechToText';
 import { ContextBuilder } from '../utils/context';
 import { injectMemoryPalace } from '../utils/memoryPalace/pipeline';
@@ -248,13 +248,7 @@ const buildCallPrompt = (userName: string, charName?: string, coreContext?: stri
 
 注意：不要写小说式中文旁白，如”（我靠在椅背上，目光看向远方）”——会被直接删掉，等于白写。
 
-### 说话的节奏（重要）
-
-你的文字会被原样转成语音，**标点就是停顿**。真人说话有呼吸、有顿挫，不会一口气赶到底。所以：
-- 该断句就断句，多用逗号、句号；该停顿、犹豫的地方大胆用”……”。
-- 想要一个明显的停顿（比如说重点前、叹气后、欲言又止），直接写 \`<#0.4#>\` 这种标记，数字是秒数（0.2~0.8 之间）。例：\`我想了想……<#0.6#>算了，还是告诉你吧。\`
-- 别把一长串话挤成没有标点的一整句——那样听起来像机器人在抢话。
-- \`<#秒#>\` 只在真正需要停顿的地方用，别每句都塞。
+${VOICE_ACTING_GUIDE}
 
 ### 底线
 
@@ -1206,7 +1200,8 @@ const CallApp: React.FC = () => {
               <div className="text-sm mt-1 leading-relaxed">{(() => {
                 if (item.role !== 'assistant') return item.text;
                 const { display, voiceText } = extractVoiceTag(item.text);
-                return <>{renderAssistantLine(display, accentColor)}{voiceText && <div className="mt-1 text-[10px] text-white/40 italic">{voiceText}</div>}</>;
+                const cleanVoice = cleanVoiceMarkupForDisplay(voiceText);
+                return <>{renderAssistantLine(display, accentColor)}{cleanVoice && <div className="mt-1 text-[10px] text-white/40 italic">{cleanVoice}</div>}</>;
               })()}</div>
               {!!item.audioUrl && <button onClick={() => playAudio(item.audioUrl)} className="mt-2 text-xs px-2.5 py-1 rounded-full bg-white/8 border border-white/15 text-white/60 transition hover:bg-white/15">重播语音</button>}
             </div>
@@ -1364,9 +1359,10 @@ const CallApp: React.FC = () => {
             <div className={`${sizeClass} whitespace-pre-wrap leading-relaxed ${bubble.role === 'user' ? 'inline-block text-left text-white/90 bg-white/[0.06] border border-white/10 rounded-2xl rounded-tr-sm px-3 py-1.5' : 'text-white/95'}`}>
               {bubble.role === 'assistant' ? (() => {
                 const { display, voiceText } = extractVoiceTag(line || bubble.text);
+                const cleanVoice = cleanVoiceMarkupForDisplay(voiceText);
                 return <>
                   {renderAssistantLine(display, accentColor)}
-                  {voiceText && <div className="mt-1 text-[11px] text-white/45 italic">{voiceText}</div>}
+                  {cleanVoice && <div className="mt-1 text-[11px] text-white/45 italic">{cleanVoice}</div>}
                 </>;
               })() : (line || bubble.text)}
             </div>
