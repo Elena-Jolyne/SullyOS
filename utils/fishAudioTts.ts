@@ -33,17 +33,17 @@ export const FISH_VOICE_ACTING_GUIDE = `### 让它听起来像活人在说话（
 
 你写的字会被鱼声原样念出来。目标不是"写一段通顺的话"，而是"写一段读出来有呼吸、有情绪起伏的对白"。读稿感、客服腔、新闻播报腔一旦出现就重写。
 
-**1. 鱼声用方括号 cue 控制情绪和声音，直接写在台词里。**
-- 情绪放在句首最好用：\`[happy] 今天天气真好。\` \`[sad] 我有点难过。\`
-- 可以用自然语言描述、不限固定词表：\`[warm and happy]\`、\`[slightly sad]\`、\`[very excited]\`、\`[nervous and uncertain]\`。
-- 语气/音量：\`[whispering]\`（悄悄话）\`[shouting]\`\`[soft tone]\`，可放句中任意位置。
+**1. 鱼声用方括号 cue 控制情绪和声音，直接写在台词里（用的是 S2.1-Pro，把 [方括号] 当自然语言理解）。**
+- **cue 可以放在句子任意位置**，不止句首——放在你想让那个情绪/动作发生的那个字前面，就在那一刻触发。例：\`真不敢相信 [gasp] 你居然真做了 [laugh]\`。整句基调的情绪放句首最顺，精确的小情绪/声响就贴着那个点放。
+- **鼓励用自然语言描述、可叠副词，不限固定词表**：\`[whispers sweetly]\`（甜甜地悄悄说）\`[laughing nervously]\`（紧张地笑）\`[warm and happy]\`\`[slightly sad]\`\`[very excited]\`\`[nervous and uncertain]\`。越贴当下心情越好，别永远只用 [happy]/[sad] 那几个干词。
+- 常用基础 cue：\`[whisper]\`\`[laugh]\`\`[emphasis]\`（加重）\`[angry]\`\`[excited]\`\`[sad]\`\`[surprised]\`\`[soft tone]\`\`[shouting]\`。
 - 真实声响：\`[laughing]\`\`[chuckling]\`\`[sighing]\`\`[sobbing]\`\`[gasping]\` —— 后面最好补一点拟声字，如 "[laughing] 哈哈哈"。
 - 停顿：\`[break]\`（短停）\`[long-break]\`（长停）。
 这些方括号 cue 只是演出指令，**不会被念出来**，也不会显示给用户。
 
 **2.〔最重要〕几乎每一句、每一个短句都要带 cue，别写裸句。**
 裸句（整句一个 cue 都没有）会被鱼声一口气、平平地读完——这是最常见的翻车。要求：
-- 每句开头给一个情绪或语气 cue（\`[happy]\`/\`[surprised]\`/\`[soft tone]\` 等）；
+- 每句给情绪/语气 cue：整句基调放句首，精确的小情绪或声响就贴着发生的那个字放（句中也行）；
 - 句子之间、换气/转折处插 \`[break]\`，停顿更久用 \`[long-break]\`；
 - 一句话里同时出现的 cue 控制在 2–3 个以内，别更多（会飘、很假），但**句与句之间几乎都要有**。
 范例（把裸句改成自然的）：
