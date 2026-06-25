@@ -23,37 +23,47 @@ const DEFAULT_FISH_MODEL = 's2.1-pro';
 
 /**
  * 鱼声语音演出规范 —— 与 MiniMax 版同源（呼吸、句长、情绪节奏的原理一致），
- * 但删掉了 MiniMax 专属的 <#秒#> 停顿标记机制，换成鱼声能吃的方式：靠标点和
- * 省略号控制停顿，情绪统一走 <语音 emotion="…"> 属性。
+ * 但用鱼声**原生**的表达机制：直接在台词里写自然语言方括号 cue（[happy]、
+ * [warm and happy]、[whispering]、[laughing]、[break] 等），鱼声会演绎、不会念出来。
+ * 不再借用 MiniMax 的 <#秒#> 停顿标记 / emotion 属性那一套。
  */
 export const FISH_VOICE_ACTING_GUIDE = `### 让它听起来像活人在说话（重要）
 
 你写的字会被鱼声原样念出来。目标不是"写一段通顺的话"，而是"写一段读出来有呼吸、有情绪起伏的对白"。读稿感、客服腔、新闻播报腔一旦出现就重写。
 
-**1. 段与段之间要换气，别无缝冲。**
-同一条语音里换行或停顿之后，如果还是你在继续说，第二段开头别一上来就冲进正题——加一个语气词或一次叹气当缓冲。
-✅ 我知道你不是故意的……只是，我还是会有点难过。
+**1. 鱼声用方括号 cue 控制情绪和声音，直接写在台词里。**
+- 情绪放在句首最好用：\`[happy] 今天天气真好。\` \`[sad] 我有点难过。\`
+- 可以用自然语言描述、不限固定词表：\`[warm and happy]\`、\`[slightly sad]\`、\`[very excited]\`、\`[nervous and uncertain]\`。
+- 语气/音量：\`[whispering]\`（悄悄话）\`[shouting]\`\`[soft tone]\`，可放句中任意位置。
+- 真实声响：\`[laughing]\`\`[chuckling]\`\`[sighing]\`\`[sobbing]\`\`[gasping]\` —— 后面最好补一点拟声字，如 "[laughing] 哈哈哈"。
+- 停顿：\`[break]\`（短停）\`[long-break]\`（长停）。
+- 一句里最多叠 2–3 个，多了声音会飘、很假：\`[sad][whispering] 我会想你的。\`
+这些方括号 cue 只是演出指令，**不会被念出来**，也不会显示给用户。
+
+**2. 段与段之间要换气，别无缝冲。** 换行或停顿后如果还是你在继续说，第二段开头加个语气词 / 一次叹气当缓冲，别一上来就冲进正题。
+✅ 我知道你不是故意的……[sighing] 只是，我还是会有点难过。
 ❌ 我知道你不是故意的。只是我还是会有点难过。（两句贴死，像棒读）
-这些地方下一句开头尤其要缓一下：解释原因、情绪转折（吐槽转温柔 / 强硬转示弱 / 玩笑转认真）、沉默后再开口、安抚对方、委屈撒娇别扭的时候。
 
-**2. 句子长短交错。** 一连串等长的句子是棒读的头号来源。让短句砸下来，让长句铺开。想强调某个词就拆开念："我。没。拿。"
+**3. 句子长短交错。** 一连串等长的句子是棒读头号来源。短句砸下来，长句铺开。想强调就拆开念："我。没。拿。"
 
-**3. 停顿靠标点和省略号，别写 MiniMax 的 <#秒#> 标记。**
-鱼声不认 <#0.5#> 这类标记，写了会被原样念出来变成杂音。要停顿就用标点：逗号轻顿、句号收住、破折号拉长、省略号"……"表示欲言又止/犹豫沉默。需要明显停顿就多用一个省略号。
+**4. 停顿也能靠标点和省略号。** 逗号轻顿、句号收住、破折号拉长、省略号"……"表欲言又止；需要明显沉默就用 \`[long-break]\` 或多个省略号。别写 MiniMax 的 \`<#0.5#>\` 这类标记——鱼声不认，会被原样念出来变杂音。
 
-**4. 情绪不同，节奏不同：**
-- 温柔安抚：慢、稳、短句多。"没事……先别急着吓自己。"
-- 委屈撒娇：语气软、省略号多一点但别太戏剧。"嗯……你刚刚是不是又不理我。"
-- 别扭傲娇：前半句嘴硬后半句放软，中间停一下。"哈，你还真会折腾我。算了，我帮你就是了。"
-- 难过压抑：更慢、更多省略号、少用长句。"……我知道。只是有点难受。"
-- 紧张犹豫：断裂感，短句多。"等等……我好像，有点不确定。"
-- 吐槽轻松：别太慢，轻微停顿即可。"行吧。人类又发明了新的折磨方式。"
+**5. 情绪不同，节奏不同：**
+- 温柔安抚：慢、稳、短句多。"[soft tone] 没事……先别急着吓自己。"
+- 委屈撒娇：语气软、省略号多一点。"[slightly sad] 嗯……你刚刚是不是又不理我。"
+- 别扭傲娇：前半句嘴硬后半句放软。"[sarcastic] 哈，你还真会折腾我。[soft tone] 算了，我帮你就是了。"
+- 难过压抑：更慢、更多省略号。"[sad] ……我知道。只是有点难受。"
+- 紧张犹豫：断裂感，短句多。"[nervous] 等等……我好像，有点不确定。"
+- 吐槽轻松：别太慢。"[relaxed] 行吧。人类又发明了新的折磨方式。"
 
-**5. 整条语音的情绪用 \`<语音 emotion="…">\` 属性标，别在正文里写方括号情绪标签。** 正文只写会被念出来的字。
+（朗读语种不是中文时，上面示例里的中文语气词换成该语言里自然的叹词 / 填充词即可，方括号 cue 写法不变，呼吸和节奏的原理也不变。）`;
 
-（朗读语种不是中文时，上面示例里的中文语气词换成该语言里自然的叹词 / 填充词即可，呼吸和节奏的原理不变。）`;
+// 鱼声方括号 cue：单层 [..]（区别于系统标记 [[..]]），内容 1–40 字符。情绪/语气/声响/停顿都走这个。
+const FISH_BRACKET_CUE_RE = /\[[^\[\]]{1,40}\]/g;
+// 鱼声 paralanguage 圆括号特效（V1.6）：(break)/(long-break)/(breath)/(laugh)/(cough)/(lip-smacking)/(sigh)
+const FISH_PAREN_FX = new Set(['break', 'long-break', 'breath', 'laugh', 'cough', 'lip-smacking', 'sigh']);
 
-/** 鱼声情绪 cue 取值（映射自上层的 MiniMax 情绪命名）。'fluent' 鱼声没有，丢弃。 */
+/** 整条情绪兜底映射：仅当上层传了 emotion 属性、且正文没有任何方括号 cue 时，前置一个 cue。 */
 const FISH_EMOTION_MAP: Record<string, string> = {
   happy: 'happy',
   sad: 'sad',
@@ -62,6 +72,44 @@ const FISH_EMOTION_MAP: Record<string, string> = {
   disgusted: 'disgusted',
   surprised: 'surprised',
   calm: 'calm',
+};
+
+const FISH_VOICE_TAG_RE = /<[语語]音[^>]*>([\s\S]*?)<\/[语語]音>/;
+
+/**
+ * 鱼声专用文本清洗（区别于 MiniMax 的 cleanTextForTts）：
+ * 关键差异 —— **保留**方括号 cue（[happy]/[whispering]…）和鱼声圆括号特效（(break)…），
+ * 因为这些是鱼声的原生演出指令，要原样送进 API。只清掉不该念的：
+ * 系统标记 [[..]]、双语分隔、中文舞台指示（…）、以及混进来的 MiniMax <#秒#> 标记。
+ */
+export const cleanTextForTtsFish = (raw: string): string => {
+  if (!raw) return '';
+  const tagMatch = raw.match(FISH_VOICE_TAG_RE);
+  let text = tagMatch ? tagMatch[1] : raw;
+  text = text
+    .replace(/\[\[.*?\]\]/g, '')                 // [[系统标记]]（双层，先于单层 cue 处理）
+    .replace(/%%BILINGUAL%%[\s\S]*/i, '')        // 双语分隔及之后
+    .replace(/（[^）]{0,48}）/g, '')              // 中文舞台指示，一律删
+    .replace(/<#\s*[\d.]+\s*#>/g, '')            // MiniMax 停顿标记，鱼声不认
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text;
+};
+
+/**
+ * 把鱼声演出标记从「要显示给用户」的文本里清掉：方括号 cue + 鱼声圆括号特效。
+ * 用于聊天气泡 / 转文字面板，免得用户看到一堆 [whispering]、(break)。
+ */
+export const stripFishMarkupForDisplay = (text?: string | null): string => {
+  if (!text) return '';
+  return text
+    .replace(FISH_BRACKET_CUE_RE, '')
+    .replace(/\(([^)]{1,20})\)/g, (m, inner: string) =>
+      FISH_PAREN_FX.has(inner.trim().toLowerCase()) ? '' : m)
+    .replace(/<#\s*[\d.]+\s*#>/g, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+([，。！？、；：,.!?…])/g, '$1')
+    .trim();
 };
 
 /** 解析 apiConfig 里的鱼声 Key（独立 Key，不复用通用 apiKey —— 那是 LLM 的）。 */
@@ -161,11 +209,14 @@ export async function synthesizeSpeechFishDetailed(
 
   const model = (vp?.fishModel || apiConfig.fishAudioModel || DEFAULT_FISH_MODEL).trim() || DEFAULT_FISH_MODEL;
 
-  // 兜底清掉混进来的 MiniMax 停顿标记，避免鱼声把 <#0.5#> 原样念出来。
-  let spoken = (text || '').replace(/<#\s*[\d.]+\s*#>/g, '').replace(/\s+/g, ' ').trim();
-  // 整条情绪：前置一个方括号 cue（鱼声会演绎、不会念出来）。
+  // Fish-aware 清洗：保留方括号 cue / 圆括号特效，只清系统标记和 MiniMax 残留。
+  let spoken = cleanTextForTtsFish(text);
+  // 兜底：上层传了整条 emotion 属性、且正文没有任何方括号 cue 时，前置一个 cue。
+  // 正常情况下 LLM 已按鱼声指导在正文写了 inline cue，这里不会触发。
+  const hasInlineCue = FISH_BRACKET_CUE_RE.test(spoken);
+  FISH_BRACKET_CUE_RE.lastIndex = 0; // 带 /g 的正则 test 有状态，复位
   const fishEmotion = options?.emotion ? FISH_EMOTION_MAP[options.emotion.toLowerCase()] : undefined;
-  if (fishEmotion) spoken = `[${fishEmotion}] ${spoken}`;
+  if (fishEmotion && !hasInlineCue) spoken = `[${fishEmotion}] ${spoken}`;
   if (!spoken) throw new Error('鱼声 TTS 文本为空');
 
   const payload: any = {

@@ -33,7 +33,7 @@ import { useChatAI } from '../hooks/useChatAI';
 import { cleanTextForTts, parseVoiceOutput } from '../utils/minimaxTts';
 import { synthesizeSpeechDetailed, characterHasVoice } from '../utils/ttsRouter';
 import { resolveMiniMaxApiKey } from '../utils/minimaxApiKey';
-import { resolveFishAudioApiKey } from '../utils/fishAudioTts';
+import { resolveFishAudioApiKey, stripFishMarkupForDisplay } from '../utils/fishAudioTts';
 import { resolveTtsProvider } from '../utils/ttsProvider';
 import { isInstantConfigReady, loadInstantConfig } from '../utils/instantPushClient';
 
@@ -292,7 +292,10 @@ const Chat: React.FC = () => {
 
         // Parse the structured voice output: spoken text (sanitized) + per-message emotion.
         const parsedVoice = parseVoiceOutput(msg.content);
-        const voiceTagContent = parsedVoice.hasVoiceTag ? parsedVoice.speech : '';
+        // 鱼声用原生 inline cue（[happy]/[whispering]…），要拿未剥离的 rawSpeech 送 API；
+        // MiniMax 用清洗过的 speech。
+        const isFishTts = resolveTtsProvider(apiConfig) === 'fishaudio';
+        const voiceTagContent = parsedVoice.hasVoiceTag ? (isFishTts ? parsedVoice.rawSpeech : parsedVoice.speech) : '';
         const voiceEmotion = parsedVoice.emotion;
 
         // Auto-TTS: only generate voice when AI explicitly used <语音> tag
@@ -390,7 +393,9 @@ const Chat: React.FC = () => {
                 emotion: voiceEmotion,
             });
             if (blobUrl.startsWith('blob:')) voiceBlobUrlsRef.current.add(blobUrl);
-            const storedSpokenText = voiceTagContent ? spokenText : (voiceLang ? spokenText : undefined);
+            // 鱼声的 spokenText 里有 inline cue（[whispering] 等），转文字面板要剥掉再存，别让用户看到标记。
+            const displaySpoken = isFishTts ? stripFishMarkupForDisplay(spokenText) : spokenText;
+            const storedSpokenText = voiceTagContent ? displaySpoken : (voiceLang ? displaySpoken : undefined);
             const storedLang = voiceLang || undefined;
             setVoiceDataMap(prev => ({ ...prev, [msg.id]: { url: blobUrl, originalText, spokenText: storedSpokenText, lang: storedLang } }));
             // Persist so the voice bar survives leaving and re-entering the chat.

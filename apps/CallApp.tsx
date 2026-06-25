@@ -6,7 +6,7 @@ import { minimaxFetch } from '../utils/minimaxEndpoint';
 import { resolveMiniMaxApiKey } from '../utils/minimaxApiKey';
 import { hashTtsParams, getCachedTts, saveCachedTts } from '../utils/ttsCache';
 import { cleanTextForTts, insertSpeechBreaks, convertHexAudioToBlob, fetchRemoteAudioBlob, VALID_EMOTIONS, stripEmotionTags, VOICE_ACTING_GUIDE, cleanVoiceMarkupForDisplay } from '../utils/minimaxTts';
-import { FISH_VOICE_ACTING_GUIDE, synthesizeSpeechFishDetailed, resolveFishAudioApiKey } from '../utils/fishAudioTts';
+import { FISH_VOICE_ACTING_GUIDE, synthesizeSpeechFishDetailed, resolveFishAudioApiKey, cleanTextForTtsFish, stripFishMarkupForDisplay } from '../utils/fishAudioTts';
 import { resolveTtsProvider, getTtsProvider } from '../utils/ttsProvider';
 import { startStt, isSttSupported, type SttSession } from '../utils/speechToText';
 import { ContextBuilder } from '../utils/context';
@@ -155,7 +155,9 @@ const SoundWaveGlyph = () => (
 );
 const renderAssistantLine = (text: string, accent = '#8b5cf6') => {
   // 朗读用的停顿标记 <#0.4#> 不显示出来
-  const trimmed = text.replace(/<#[\d.]+#>/g, '').trim();
+  let trimmed = text.replace(/<#[\d.]+#>/g, '').trim();
+  // 鱼声的 inline cue（[whispering]/[break] 等）是演出指令，不该显示给用户。
+  if (getTtsProvider() === 'fishaudio') trimmed = stripFishMarkupForDisplay(trimmed);
   // 按 中文舞台指示（…）、英文语气词标签 (sighs)、换行 切分，前两者作为特殊元素渲染
   const parts = trimmed.split(SOUND_TAG_SPLIT_RE).filter(Boolean);
   return parts.map((part, idx) => {
@@ -413,12 +415,13 @@ const CallApp: React.FC = () => {
     const hasTimber = (selectedChar?.voiceProfile?.timberWeights?.length || 0) > 1;
     return !!resolveMiniMaxApiKey(apiConfig) && (!!voiceId || hasTimber);
   };
-  // 鱼声合成：清洗 → 合成 → 返回可播放 URL。鱼声不吃 <#秒#> 标记，所以不 insertSpeechBreaks。
+  // 鱼声合成：直接把（带 inline cue 的）文本交给鱼声合成器，由 cleanTextForTtsFish 做
+  // 鱼声专属清洗——保留 [happy]/[whispering]/[break] 等 cue，只清系统标记 / <#秒#> 残留。
+  // 绝不能先走 MiniMax 的 cleanTextForTts，那会把方括号 cue 全剥掉。
   const synthesizeFishCallUrl = async (rawText: string, emotion?: string): Promise<string> => {
     if (!selectedChar) throw new Error('未选择角色');
-    const speechText = cleanTextForTts(rawText);
-    if (!speechText.trim()) throw new Error('可朗读文本为空');
-    const { url } = await synthesizeSpeechFishDetailed(speechText, selectedChar, apiConfig, {
+    if (!cleanTextForTtsFish(rawText).trim()) throw new Error('可朗读文本为空');
+    const { url } = await synthesizeSpeechFishDetailed(rawText, selectedChar, apiConfig, {
       languageBoost: voiceLang || undefined,
       emotion,
     });
