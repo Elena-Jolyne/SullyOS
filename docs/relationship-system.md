@@ -11,6 +11,8 @@
 ## 数据模型（`types.ts`）
 
 - `PhoneContact`：联系人。`kind: 'real' | 'npc'`；`linkedCharId`（real 时绑定真实角色）；`affinity`（机主对 TA 的好感，**-100..100**，负=反感）；`status: 'friend'|'pending'|'blocked'|'deleted'`。
+  - `note`：**机主/用户手写的备注**——当「已确立的事实」用，prompt 里要求严格遵守，**不被自动生成覆盖**（见下）。
+  - `learned`：**机主相处中「逐渐了解到」的认识**——由对话里 `[[了解:…]]` 累积而来。**和 note 分开**：这是「印象/判断」，来源是对方在聊天里自己说的，**未必属实**（对方可能在编）。
 - `PhoneEvidence.contactId?`：聊天记录归属的联系人。
 - `CharacterProfile.phoneState.contacts?: PhoneContact[]`：机主通讯录。
 - `CharacterProfile.phoneState.allowFictionalContacts?: boolean`：是否允许虚构 NPC（默认 true）。**关掉 = TA 只与神经链接里的真实角色来往**，生成时丢弃所有非真实联系人。
@@ -34,6 +36,29 @@
 | **用户删好友 → char 知情** | 用户在查手机里手动删好友/拉黑时，往机主私聊落一张 **`phone_card` 关系变动卡片**（`kind:'relationship'`，💔/🚫）：聊天里渲染成卡片、`content` 又带进角色上下文，让角色察觉「是用户干的」。角色自身的好感驱动增删则照常自发发生 | `CheckPhone.handleSetContactStatus`、`MessageItem.tsx` phone_card `relationship` 分支 |
 | **真实时间感知** | 当前真实日期/星期/时段/时间统一在 `ContextBuilder.buildCoreContext` 注入，受 `char.timeAwarenessEnabled` 控制（**默认开**）。所有走 buildCoreContext 的路径（私聊/查手机/人际关系/通话/约会…）都有时间观念；关掉则全部不注入 | `utils/context.ts` buildCoreContext「当前时间」块 |
 
+## 备注 vs 了解（两份不同性质的「认识」）
+
+| | `note` 备注 | `learned` 了解 |
+|---|---|---|
+| 谁写的 | 用户/机主**手写**（`handleSaveNote`） | 角色对话里**自动产出**（`[[了解:…]]`） |
+| 性质 | **已确立的事实**，必须遵守 | **印象/判断**，来源是对方自己说的，**未必属实** |
+| prompt 注入措辞 | 「必须当作真实情况严格遵守，不得与之矛盾」 | 「凭相处得来的印象，未必属实，可作参考别当铁证」 |
+| 会被自动改吗 | 不会（`upsertContact` 保留已有非空 note） | 会累积（`appendLearned`，去重 + 留最近 8 条） |
+| UI | 「备注」卡（可编辑） | 「了解」卡（虚线、只读、可一键清空） |
+
+> 想让角色「认得」某人、按某关系演，写 **备注**；想看角色在交往里**自己摸索出的（可能被骗的）认识**，看 **了解**。
+
+## 对话里的内联指令（写在回复末尾，引擎解析后剥掉，不再额外调 LLM）
+
+- `[[Δ:+N]]` —— 这段说完后说话人对对方的**好感变化**，N 为 -20~20 整数；没变写 `[[Δ:0]]`。`extract()` 累加并钳制。
+- `[[了解:一句话]]` —— 说话人这次**新认识到**的关于对方的事（身份、在意什么、透露的关键信息…）。`extract()`（真人）/ `runNpcConversation`（NPC，从整段输出里抠出）解析出来，经 `appendLearned` 写进**说话人对对方**那条联系人的 `learned`。没有新认识就不写这行。
+  - 真人双向：A 学到的进「A→B」的 learned，B 学到的进「B→A」的 learned，各记各的。
+  - NPC：脑补出的设定也回写 learned，**让同一个虚构的人下次保持一致**。
+
+## 动机（让「主动发消息」事出有因）
+
+A 发起 / NPC 推进的 prompt 里给了一份**具体动机清单**（好奇这人怎么会在通讯录里、寒暄水聊、求助、打听/试探身份、报备近况、不满对峙…），可任选一种或几种，并要求：**贯彻动机、前后一致**，别「明明自己找上门却突然卑微讨好或反过来阴阳怪气」。角色被强调为**完整独立人格**，回应方也基于自身立场（不一味迎合、不无故敌对）。
+
 ## 真假甄别怎么做的
 
 生成 `chat` / `contacts` 时，把**神经链接里其他真实角色名单**注进 prompt，要求 LLM 对每个联系人输出 `kind`（real/npc）+ `linkedName`。落库时再用 `matchRealChar()` 对名字做精确/包含兜底匹配，命中即绑定 `linkedCharId` 并置 `kind:'real'`，防 LLM 漏标。
@@ -42,10 +67,10 @@
 
 | 文件 | 职责 |
 |---|---|
-| `utils/relationshipChat.ts` | 纯函数（`normName`/`matchRealChar`/`upsertContact`/`flipTranscript`/`clampAffinity`）+ 对话引擎（`runRealConversation` 双 LLM / `runNpcConversation` 单 LLM） |
+| `utils/relationshipChat.ts` | 纯函数（`normName`/`matchRealChar`/`upsertContact`/`clampAffinity`/`parseTranscript`/`serializeTurns`/`flipTranscript`/`appendLearned`）+ 对话引擎（`runRealConversation` 双 LLM / `runNpcConversation` 单 LLM） |
 | `utils/relationshipChat.test.ts` | 纯函数单测 |
 | `apps/CheckPhone.tsx` | 通讯录 UI + 全部 handler + 落库/镜像 |
-| `types.ts` | `PhoneContact` / `PhoneEvidence.contactId` / `phoneState.contacts` |
+| `types.ts` | `PhoneContact`（含 `note` / `learned`）/ `PhoneEvidence.contactId` / `phoneState.contacts` |
 
 ## UI 命名
 
@@ -61,5 +86,6 @@
 
 - `runRealConversation` 续写时会把已有 A 视角脚本解析回 turns 续跑（`parseTranscript` 无损），产出**完整脚本**，落库时整段替换原记录。
 - 镜像写入对方 B 用的也是 `updateCharacter(b.id, …)`（函数式合并），不会覆盖 B 的 simLogs。
-- 好感变化由 A/B 各自在回复末尾用 `[[Δ:+N]]`（-20~20）带出，`extract()` 解析并剥掉标记 —— 不另开 LLM 调用；模型没给则 delta=0。
+- 好感变化由 A/B 各自在回复末尾用 `[[Δ:+N]]`（-20~20）带出，`extract()` 解析并剥掉标记 —— 不另开 LLM 调用；模型没给则 delta=0。`[[了解:…]]` 同理（同一次解析里一起抠出）。
+- `learned` 始终以「未必属实」的措辞注入，**别在别处把它当事实用**；要表达确定事实请走 `note`。
 - 角色**自发**的关系变动（好感阈值触发自动加删友）会播报「我把 XX 删了」进机主私聊；**用户手动**删/拉黑则落 `role:'system'` 提示让角色知道是用户干的 —— 两者区分开。
