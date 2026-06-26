@@ -792,6 +792,33 @@ ${layoutHint[layout || 'generic']}`;
         }
     };
 
+    // 清空某联系人的这段对话（生成错位/不满意时一键抹掉重来）。
+    // 真人联系人连对方手机里的镜像记录一起清，保持两边一致。
+    const handleClearContactConversation = async (contact: PhoneContact) => {
+        if (!targetChar) return;
+        const isChatWith = (r: PhoneEvidence, cId: string | undefined, nm: string) =>
+            r.type === 'chat' && (r.contactId === cId || normName(r.title) === normName(nm));
+        // 机主侧
+        const myRec = (targetChar.phoneState?.records || []).find(r => isChatWith(r, contact.id, contact.name));
+        if (myRec?.systemMessageId) await DB.deleteMessage(myRec.systemMessageId);
+        updateCharacter(targetChar.id, (cur) => ({
+            phoneState: { ...cur.phoneState, records: (cur.phoneState?.records || []).filter(r => !isChatWith(r, contact.id, contact.name)) },
+        }));
+        // 对方侧镜像（真人）
+        if (contact.kind === 'real' && contact.linkedCharId) {
+            const b = characters.find(c => c.id === contact.linkedCharId);
+            if (b) {
+                const bContact = (b.phoneState?.contacts || []).find(c => c.linkedCharId === targetChar.id || normName(c.name) === normName(targetChar.name));
+                const bRec = (b.phoneState?.records || []).find(r => isChatWith(r, bContact?.id, targetChar.name));
+                if (bRec?.systemMessageId) await DB.deleteMessage(bRec.systemMessageId);
+                updateCharacter(b.id, (cur) => ({
+                    phoneState: { ...cur.phoneState, records: (cur.phoneState?.records || []).filter(r => !isChatWith(r, bContact?.id, targetChar.name)) },
+                }));
+            }
+        }
+        addToast('已清空这段对话', 'success');
+    };
+
     // ----- 人格模拟：后台生成（生成期间用户可离开本 App 去别处逛） -----
     const runSim = async (m: 'daily' | 'event', t: string, presence: 'default' | 'light' | 'none' = 'default', tone: 'mix' | 'depressive' | 'darkhumor' | 'cute' = 'mix') => {
         if (!targetChar) return;
@@ -1325,6 +1352,20 @@ ${layoutHint[layout || 'generic']}`;
                         const shown = hidden > 0 ? parsed.slice(-CAP) : parsed;
                         return (
                             <div className="rounded-2xl p-3 bg-white/[0.025] border border-white/[0.06] space-y-2.5">
+                                {/* 这段对话的清空入口：生成错位/不满意时一键抹掉重来 */}
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] tracking-[0.2em] uppercase text-white/35">对话 · {parsed.length}</span>
+                                    <button onClick={() => askConfirm({
+                                        title: '清空这段对话？',
+                                        desc: c.kind === 'real' && c.linkedCharId
+                                            ? `会把「${c.name}」这段聊天记录清掉（对方手机里的镜像也一并清除），之后可重新生成。`
+                                            : `会把「${c.name}」这段聊天记录清掉，之后可重新生成。`,
+                                        confirmLabel: '清空', danger: true, onConfirm: () => handleClearContactConversation(c),
+                                    })}
+                                        className="flex items-center gap-1 text-[10.5px] text-rose-300/70 active:scale-90 transition">
+                                        <Trash size={12} weight="bold" /> 清空对话
+                                    </button>
+                                </div>
                                 {hidden > 0 && (
                                     <button onClick={() => setConvExpanded(true)}
                                         className="w-full py-2 rounded-xl text-[11.5px] font-semibold text-white/55 bg-white/[0.04] border border-white/[0.07] active:scale-[0.99] transition">
