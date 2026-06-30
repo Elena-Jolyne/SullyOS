@@ -10,7 +10,7 @@ import { CreatorIframe, type ChibiResult } from '../components/Like520Event';
 import { useMusic, type Song } from '../context/MusicContext';
 import { DB } from '../utils/db';
 import { VRScheduler } from '../utils/vrWorld/scheduler';
-import { VR_ROOMS, getRoom, VR_DEFAULT_INTERVAL_MIN } from '../utils/vrWorld/constants';
+import { VR_ROOMS, getRoom, VR_DEFAULT_INTERVAL_MIN, SIGNAL_EPIGRAPH } from '../utils/vrWorld/constants';
 import { buildNovelAsync, groupAnnotationsBySeg, getBookmark } from '../utils/vrWorld/novel';
 import { decodeBytes } from '../utils/vrWorld/decodeText';
 import { stripLeakedAttrs } from '../utils/vrWorld/prompts';
@@ -1574,109 +1574,169 @@ const PostOfficePanel: React.FC<{ addToast?: (m: string, t?: any) => void; chara
 // ============ 房间场景（全屏） ============
 const toSong = (s: CharPlaylistSong): Song => ({ id: s.id, name: s.name, artists: s.artists, album: s.album, albumPic: s.albumPic, duration: s.duration, fee: s.fee ?? 0 });
 
-// ============ 信号坠落处面板（只读：当前在写的诗 + 翻阅诗集）============
+// ============ 信号坠落处面板（只读：正在坠落的诗 + 封存成星图）============
+// 满配可视化：当前诗按「信号坠落」竖向沉积，你 char 的句子暖光标「你」；封存
+// 的诗散成夜空里的卫星，你参与过的带光晕。点开任一颗读全文。读诗永远第一。
+
+const signalHashX = (id: string): number => {
+    let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+    return 12 + (h % 62); // 12%–74%，避免贴边
+};
+const isMineLine = (l: SignalPoem['lines'][number]) => !!l.mine;
+
+/** 一句诗的展示行：mine 暖光 + 「你」。 */
+const PoemLineRow: React.FC<{ l: SignalPoem['lines'][number]; showSeq?: boolean }> = ({ l, showSeq }) => {
+    const mine = isMineLine(l);
+    return (
+        <div className="flex gap-2 leading-relaxed" style={{ fontSize: '12.5px' }}>
+            {showSeq && <span className="tabular-nums text-[10px] mt-0.5 shrink-0 w-4 text-right" style={{ color: mine ? 'rgba(251,191,36,.6)' : 'rgba(165,180,252,.4)' }}>{l.seq}</span>}
+            <span className="flex-1">
+                <span style={{ fontStyle: 'italic', color: mine ? 'rgb(253,230,170)' : 'rgba(255,255,255,.88)', textShadow: mine ? '0 0 10px rgba(251,191,36,.45)' : 'none' }}>{l.content}</span>
+                {mine
+                    ? <span className="ml-1.5 text-[8px] align-middle rounded-full px-1 py-[1px] text-amber-100" style={{ background: 'rgba(251,191,36,.18)', border: '1px solid rgba(251,191,36,.4)' }}>你</span>
+                    : <span className="text-[9px]" style={{ color: 'rgba(165,180,252,.4)' }}> — {l.pen}</span>}
+            </span>
+        </div>
+    );
+};
+
 const SignalPanel: React.FC<{ addToast?: (m: string, t?: any) => void }> = ({ addToast }) => {
     const [state, setState] = useState<SignalState | null>(null);
     const [feed, setFeed] = useState<SignalPoem[]>([]);
     const [loading, setLoading] = useState(true);
     const [offline, setOffline] = useState(false);
-    const [tab, setTab] = useState<'current' | 'gallery'>('current');
-    const [openId, setOpenId] = useState<string | null>(null);
+    const [tab, setTab] = useState<'falling' | 'sky'>('falling');
+    const [mineOnly, setMineOnly] = useState(false);
+    const [openPoem, setOpenPoem] = useState<SignalPoem | null>(null);
 
     const load = useCallback(async () => {
-        try {
-            const s = await Signal.current();
-            setState(s); setOffline(false);
-        } catch { setOffline(true); }
+        try { setState(await Signal.current()); setOffline(false); }
+        catch { setOffline(true); }
         finally { setLoading(false); }
     }, []);
-    const loadFeed = useCallback(async () => {
-        try { setFeed(await Signal.feed(30)); } catch { /* 离线不影响 */ }
+    const loadFeed = useCallback(async (mo: boolean) => {
+        try { setFeed(await Signal.feed(40, { mineOnly: mo })); } catch { /* 离线不影响 */ }
     }, []);
 
     useEffect(() => {
-        void load(); void loadFeed();
-        const h = () => { void load(); void loadFeed(); };
+        void load(); void loadFeed(mineOnly);
+        const h = () => { void load(); void loadFeed(mineOnly); };
         window.addEventListener('vr-session-done', h);
         return () => window.removeEventListener('vr-session-done', h);
-    }, [load, loadFeed]);
+    }, [load, loadFeed, mineOnly]);
 
     const bk = state?.booklet;
     const poem = state?.poem;
+    const myEchoes = feed.filter(p => (p.mineCount || 0) > 0).length;
 
     return (
         <div className="absolute left-3 right-3 z-20 rounded-2xl overflow-hidden flex flex-col backdrop-blur-md"
-            style={{ top: VR_ROOM_PANEL_TOP, bottom: vrBottomPad('4rem'), background: 'rgba(12,14,40,0.62)', border: '1px solid rgba(150,160,255,0.22)', boxShadow: '0 8px 26px rgba(0,0,0,.4)' }}>
-            {/* 册子抬头 */}
-            <div className="px-3 py-2 border-b border-white/10">
+            style={{ top: VR_ROOM_PANEL_TOP, bottom: vrBottomPad('4rem'), background: 'rgba(10,11,34,0.66)', border: '1px solid rgba(150,160,255,0.22)', boxShadow: '0 8px 26px rgba(0,0,0,.4)' }}>
+            {/* 封面：标题 + 题记 */}
+            <div className="px-3.5 pt-2.5 pb-2 border-b border-white/10" style={{ background: 'linear-gradient(180deg, rgba(60,56,140,.18), transparent)' }}>
                 <div className="flex items-baseline gap-2">
-                    <span className="text-[12px] tracking-[0.18em] text-indigo-100" style={{ fontFamily: `'Noto Serif SC',serif` }}>{bk?.title || '信号坠落处'}</span>
+                    <span className="text-[12.5px] tracking-[0.18em] text-indigo-50" style={{ fontFamily: `'Noto Serif SC',serif` }}>{bk?.title || '信号坠落处'}</span>
                     {bk?.subtitle && <span className="text-[9.5px] text-indigo-300/60 tracking-wider">{bk.subtitle}</span>}
                     {bk && <span className="ml-auto text-[9px] text-white/35 tabular-nums">本册 {bk.poemCount}/{bk.poemsTarget} 首</span>}
                 </div>
-                {bk?.theme && <div className="text-[9.5px] text-indigo-300/55 mt-0.5">主题：{bk.theme}</div>}
+                <p className="mt-1 text-[10px] leading-relaxed text-indigo-200/55 whitespace-pre-line" style={{ fontStyle: 'italic' }}>{SIGNAL_EPIGRAPH}</p>
+                {bk?.theme && <div className="text-[9.5px] text-indigo-300/55 mt-1">主题：{bk.theme}</div>}
                 <div className="flex gap-1.5 mt-2">
-                    {([['current', '正在合写'], ['gallery', '诗集']] as const).map(([k, label]) => (
+                    {([['falling', '正在坠落'], ['sky', '星图']] as const).map(([k, label]) => (
                         <button key={k} onClick={() => setTab(k)}
                             className={`text-[10.5px] rounded-full px-2.5 py-0.5 font-semibold ${tab === k ? 'bg-indigo-400 text-white' : 'bg-white/8 text-indigo-200/70'}`}>{label}</button>
                     ))}
+                    {tab === 'sky' && (
+                        <button onClick={() => setMineOnly(m => !m)}
+                            className={`ml-auto text-[10px] rounded-full px-2.5 py-0.5 font-semibold ${mineOnly ? 'text-amber-100' : 'text-indigo-200/60'}`}
+                            style={{ background: mineOnly ? 'rgba(251,191,36,.18)' : 'rgba(255,255,255,.06)', border: `1px solid ${mineOnly ? 'rgba(251,191,36,.4)' : 'transparent'}` }}>
+                            只看我的回声
+                        </button>
+                    )}
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto vr-reader-scroll px-3 py-3">
+            <div className="flex-1 overflow-y-auto vr-reader-scroll">
                 {loading ? (
-                    <p className="text-[11px] text-white/40 text-center py-6">接收信号中…</p>
+                    <p className="text-[11px] text-white/40 text-center py-8">接收信号中…</p>
                 ) : offline ? (
-                    <p className="text-[11px] text-white/45 text-center py-6 leading-relaxed">连不上信号坠落处。<br />检查邮局后端地址，或稍后再来。</p>
-                ) : tab === 'current' ? (
-                    poem ? (
-                        <div>
-                            <div className="text-[13px] font-bold text-indigo-50" style={{ fontFamily: `'Noto Serif SC',serif` }}>《{poem.title}》</div>
-                            <div className="text-[9.5px] text-indigo-300/55 mb-2">篇幅 {poem.targetLines} 句 · 已写 {poem.lineCount} 句 · 还差 {Math.max(0, poem.targetLines - poem.lineCount)} 句封笔</div>
-                            <div className="space-y-1.5">
-                                {(poem.lines || []).map(l => (
-                                    <div key={l.seq} className="flex gap-2 text-[12.5px] leading-relaxed text-white/88">
-                                        <span className="text-indigo-300/40 tabular-nums text-[10px] mt-0.5 shrink-0 w-4 text-right">{l.seq}</span>
-                                        <span className="flex-1"><span style={{ fontStyle: 'italic' }}>{l.content}</span> <span className="text-indigo-300/40 text-[9px]">— {l.pen}</span></span>
+                    <p className="text-[11px] text-white/45 text-center py-8 leading-relaxed">连不上信号坠落处。<br />检查邮局后端地址，或稍后再来。</p>
+                ) : tab === 'falling' ? (
+                    <div className="px-3.5 py-3">
+                        {poem ? (
+                            <div>
+                                <div className="text-[13px] font-bold text-indigo-50" style={{ fontFamily: `'Noto Serif SC',serif` }}>《{poem.title}》</div>
+                                <div className="text-[9.5px] text-indigo-300/55 mb-2.5">篇幅 {poem.targetLines} 句 · 已坠落 {poem.lineCount} 句 · 还差 {Math.max(0, poem.targetLines - poem.lineCount)} 句封笔</div>
+                                <div className="space-y-1.5">
+                                    {(poem.lines || []).map(l => <PoemLineRow key={l.seq} l={l} showSeq />)}
+                                    {/* 等下一次坠落：搏动的光标 = 一次 die 与重生的心跳 */}
+                                    <div className="flex gap-2 items-center text-[11.5px] pt-0.5">
+                                        <span className="tabular-nums text-[10px] shrink-0 w-4 text-right text-indigo-300/35">{poem.lineCount + 1}</span>
+                                        <span className="inline-block h-3 w-[2px] rounded-full" style={{ background: 'rgba(165,180,252,.8)', animation: 'vrtwinkle 1.4s ease-in-out infinite' }} />
+                                        <span className="text-indigo-300/40 italic">等下一次坠落…</span>
                                     </div>
-                                ))}
-                                <div className="flex gap-2 text-[12px] text-indigo-300/45 italic"><span className="w-4 text-right tabular-nums text-[10px] mt-0.5 shrink-0">{poem.lineCount + 1}</span><span>等下一个电子生命接上…</span></div>
+                                </div>
                             </div>
-                        </div>
-                    ) : (
-                        <p className="text-[11px] text-white/45 text-center py-6 leading-relaxed">此刻信号静默，没有正在写的诗。<br />下一个逛进来的角色会起个新篇。</p>
-                    )
+                        ) : (
+                            <p className="text-[11px] text-white/45 text-center py-8 leading-relaxed">此刻信号静默，没有正在坠落的诗。<br />下一个逛进来的角色会起个新篇。</p>
+                        )}
+                    </div>
                 ) : (
                     feed.length === 0 ? (
-                        <p className="text-[11px] text-white/40 text-center py-6">还没有写完封存的诗。</p>
+                        <p className="text-[11px] text-white/40 text-center py-8 leading-relaxed">{mineOnly ? '你的回声还没落进任何一颗卫星。' : '还没有写完封存的诗。'}</p>
                     ) : (
-                        <div className="space-y-2">
-                            {feed.map(p => {
-                                const open = openId === p.id;
-                                return (
-                                    <div key={p.id} className="rounded-xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                                        <button onClick={() => setOpenId(open ? null : p.id)} className="w-full text-left px-3 py-2 flex items-center gap-2 active:bg-white/5">
-                                            <span className="text-[12px] font-bold text-indigo-50 truncate" style={{ fontFamily: `'Noto Serif SC',serif` }}>《{p.title}》</span>
-                                            <span className="ml-auto text-[9px] text-white/35 tabular-nums shrink-0">{p.lineCount} 句</span>
-                                            <CaretRight size={11} weight="bold" className={`text-white/40 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
+                        // 星图：每首封存的诗一颗卫星，竖向铺开、横向按 id 散落；参与过的带光晕
+                        <div className="relative px-2 py-3" style={{ minHeight: '100%' }}>
+                            {/* 极淡的星尘背景 */}
+                            <div className="pointer-events-none absolute inset-0 opacity-50" style={{ backgroundImage: 'radial-gradient(1px 1px at 20% 12%, rgba(255,255,255,.4), transparent), radial-gradient(1px 1px at 66% 30%, rgba(200,210,255,.35), transparent), radial-gradient(1px 1px at 40% 60%, rgba(230,225,255,.3), transparent), radial-gradient(1px 1px at 82% 78%, rgba(255,255,255,.35), transparent)' }} />
+                            <div className="relative space-y-3.5">
+                                {feed.map(p => {
+                                    const mine = (p.mineCount || 0) > 0;
+                                    const sz = 12 + Math.min(16, p.lineCount * 1.4);
+                                    return (
+                                        <button key={p.id} onClick={() => setOpenPoem(p)}
+                                            className="relative block w-full text-left active:opacity-80" style={{ height: `${sz + 6}px` }}>
+                                            <span className="absolute -translate-y-1/2 top-1/2 flex items-center gap-2" style={{ left: `${signalHashX(p.id)}%` }}>
+                                                {/* 卫星 */}
+                                                <span className="rounded-full shrink-0" style={{
+                                                    width: sz, height: sz,
+                                                    background: mine ? 'radial-gradient(circle at 35% 35%, #ffe7a8, #f5b94f)' : 'radial-gradient(circle at 35% 35%, #cfd6ff, #7b86d6)',
+                                                    boxShadow: mine ? '0 0 14px 3px rgba(251,191,36,.5), 0 0 0 4px rgba(251,191,36,.14)' : '0 0 10px 1px rgba(150,160,255,.4)',
+                                                }} />
+                                                <span className="text-[11px] truncate max-w-[42vw]" style={{ fontFamily: `'Noto Serif SC',serif`, color: mine ? 'rgba(253,230,170,.95)' : 'rgba(220,224,255,.82)' }}>《{p.title}》</span>
+                                                <span className="text-[8.5px] tabular-nums shrink-0" style={{ color: mine ? 'rgba(251,191,36,.6)' : 'rgba(165,180,252,.45)' }}>{p.lineCount}句</span>
+                                            </span>
                                         </button>
-                                        {open && (
-                                            <div className="px-3 pb-2.5 space-y-1">
-                                                {(p.lines || []).map(l => (
-                                                    <div key={l.seq} className="text-[12px] leading-relaxed text-white/85"><span style={{ fontStyle: 'italic' }}>{l.content}</span> <span className="text-indigo-300/35 text-[9px]">— {l.pen}</span></div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })}
+                            </div>
                         </div>
                     )
                 )}
             </div>
-            <div className="px-3 py-1.5 border-t border-white/10">
-                <p className="text-[9px] text-indigo-300/45 leading-relaxed">这本册子由所有用户的角色跨实例合写——你只能旁观，写诗的是登入彼方的角色们。</p>
+
+            {/* 底注：星图给「卫星 / 你的回声」计数；其它页给旁观说明 */}
+            <div className="px-3.5 py-1.5 border-t border-white/10">
+                {tab === 'sky' && feed.length > 0
+                    ? <p className="text-[9px] text-indigo-300/55 leading-relaxed">这片夜空里有 <span className="text-indigo-100 tabular-nums">{feed.length}</span> 颗卫星 · 你的回声落在其中 <span className="text-amber-200 tabular-nums">{myEchoes}</span> 颗</p>
+                    : <p className="text-[9px] text-indigo-300/45 leading-relaxed">所有用户的角色跨实例合写——你只能旁观。换设备？去邮局导出身份码，诗和信一起找回。</p>}
             </div>
+
+            {/* 读一整首封存的诗 */}
+            {openPoem && (
+                <div className="absolute inset-0 z-30 flex flex-col" style={{ background: 'rgba(6,7,22,0.94)' }} onClick={() => setOpenPoem(null)}>
+                    <div className="flex-1 overflow-y-auto vr-reader-scroll px-5 py-6" onClick={e => e.stopPropagation()}>
+                        <div className="text-center mb-4">
+                            <div className="text-[16px] font-bold text-indigo-50" style={{ fontFamily: `'Noto Serif SC',serif` }}>《{openPoem.title}》</div>
+                            <div className="text-[9px] text-indigo-300/45 mt-1">{openPoem.lineCount} 句 · {(openPoem.mineCount || 0) > 0 ? <span className="text-amber-200/80">你的回声落在这里 {openPoem.mineCount} 句</span> : '一首陌生人合写的诗'}</div>
+                        </div>
+                        <div className="space-y-2.5 max-w-md mx-auto">
+                            {(openPoem.lines || []).map(l => <PoemLineRow key={l.seq} l={l} />)}
+                        </div>
+                    </div>
+                    <button onClick={() => setOpenPoem(null)} className="shrink-0 mx-auto mb-4 mt-1 text-[11px] text-white/60 rounded-full px-5 py-1.5 bg-white/8 active:bg-white/15" style={{ marginBottom: vrBottomPad('1rem') }}>合上</button>
+                </div>
+            )}
         </div>
     );
 };

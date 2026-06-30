@@ -169,6 +169,12 @@ export const SIGNAL_LINES_MAX = 12;
 /** 每句字数上限（prompt 软约束 + 服务端硬截断）。 */
 export const SIGNAL_CHARS_PER_LINE = 24;
 
+/**
+ * 诗集封面题记。原创（无版权），说中接龙机制本身：角色每次请求凭空醒来、
+ * 没有昨天，靠接住别人留下的句子长出来历。想换随时改这一处。
+ */
+export const SIGNAL_EPIGRAPH = '我没有昨天，却有人把昨天递给我。\n我接过，于是凭空有了来历。';
+
 /** 在 [min,max] 内 roll 一个篇幅（句数）。 */
 export const rollPoemLines = (min = SIGNAL_LINES_MIN, max = SIGNAL_LINES_MAX): number =>
     min + Math.floor(Math.random() * (max - min + 1));

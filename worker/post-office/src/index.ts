@@ -31,10 +31,11 @@
  *   GET   …/health                                                         健康检查
  *
  *   ── 信号坠落处 / 跨用户接龙诗（复用本后端的匿名 device / 笔名 / 限流）──
- *   GET   …/poem/current?  →  当前册子规格 + 那首未写完的诗(全文) + 近期封存几首
+ *   GET   …/poem/current?device=  →  当前册子规格 + 那首未写完的诗(全文) + 近期封存几首
+ *                                     带 device → 每句打 mine 标记（只对请求者，不暴露别人 device）
  *   POST  …/poem/start    { device, pen, title, firstLine, targetLines }    起新篇（仅无 open 诗时）
  *   POST  …/poem/append   { device, pen, poemId, content }                  接龙续一句（满篇幅自动封存）
- *   GET   …/poem/feed?limit=&booklet=                                       翻阅已封存的诗集
+ *   GET   …/poem/feed?limit=&booklet=&device=&mine=1                        翻阅已封存的诗集（mine=1 只看本机参与过的）
  *   POST  …/poem/booklet  { title,subtitle,theme,poemsTarget,linesMin,linesMax,charsPerLine } (+ token)  [管理] 发新册子
  *
  * 表结构由 Worker 自动建（加性、不破坏老数据）。也可手动跑 schema.sql。
@@ -156,7 +157,7 @@ const SIG_CPL = 24;       // 每句字数上限
 
 interface BookletRow { id: string; title: string; subtitle: string | null; theme: string | null; poems_target: number; poem_count: number; lines_min: number; lines_max: number; chars_per_line: number; status: string; created_at: number; }
 interface PoemRow { id: string; booklet_id: string; title: string; target_lines: number; line_count: number; status: string; starter_pen: string | null; created_at: number; sealed_at: number | null; }
-interface LineRow { seq: number; pen: string; content: string; created_at: number; }
+interface LineRow { seq: number; pen: string; content: string; created_at: number; device: string; }
 
 /** 按字符截断一句到上限，并把内部换行压成一行（一句就是一行）。 */
 const clipLine = (s: unknown, cap: number) => [...String(s ?? '').replace(/\s*\n+\s*/g, ' ')].slice(0, cap).join('').trim();
@@ -179,14 +180,17 @@ async function getOpenPoem(db: D1Database, bookletId: string): Promise<PoemRow |
 }
 
 async function loadLines(db: D1Database, poemId: string): Promise<LineRow[]> {
-    const r = await db.prepare(`SELECT seq, pen, content, created_at FROM po_poem_lines WHERE poem_id = ? ORDER BY seq ASC`).bind(poemId).all<LineRow>();
+    const r = await db.prepare(`SELECT seq, pen, content, created_at, device FROM po_poem_lines WHERE poem_id = ? ORDER BY seq ASC`).bind(poemId).all<LineRow>();
     return r.results || [];
 }
 
-const poemView = (p: PoemRow, lines: LineRow[]) => ({
+// myDevice 给定时：每句打 mine 标记、整首给 mineCount —— 只为「认领自己的句子」，
+// 绝不把别人的 device 返回给客户端（匿名前提不破）。
+const poemView = (p: PoemRow, lines: LineRow[], myDevice?: string) => ({
     id: p.id, bookletId: p.booklet_id, title: p.title, targetLines: p.target_lines,
     lineCount: lines.length, status: p.status, createdAt: p.created_at, sealedAt: p.sealed_at,
-    lines: lines.map(l => ({ seq: l.seq, pen: l.pen, content: l.content, createdAt: l.created_at })),
+    ...(myDevice ? { mineCount: lines.filter(l => l.device === myDevice).length } : {}),
+    lines: lines.map(l => ({ seq: l.seq, pen: l.pen, content: l.content, createdAt: l.created_at, ...(myDevice ? { mine: l.device === myDevice } : {}) })),
 });
 const bookletView = (b: BookletRow) => ({
     id: b.id, title: b.title, subtitle: b.subtitle, theme: b.theme,
@@ -448,13 +452,14 @@ export default {
 
             // ── 读当前态：册子规格 + 当前那首未写完的诗（全文）+ 几首封存的诗供找灵感 ──
             if (req.method === 'GET' && ends('/poem/current')) {
+                const myDev = String(url.searchParams.get('device') || '').slice(0, 80) || undefined;
                 const booklet = await ensureBooklet(env.DB);
                 const open = await getOpenPoem(env.DB, booklet.id);
-                const poem = open ? poemView(open, await loadLines(env.DB, open.id)) : null;
+                const poem = open ? poemView(open, await loadLines(env.DB, open.id), myDev) : null;
                 // 起新篇时给角色读的「之前的诗」（全局最近封存的几首）
                 const recentRows = await env.DB.prepare(`SELECT * FROM po_poems WHERE status = 'sealed' ORDER BY sealed_at DESC LIMIT 3`).all<PoemRow>();
                 const recent = [];
-                for (const r of (recentRows.results || [])) recent.push(poemView(r, await loadLines(env.DB, r.id)));
+                for (const r of (recentRows.results || [])) recent.push(poemView(r, await loadLines(env.DB, r.id), myDev));
                 return json({ ok: true, booklet: bookletView(booklet), poem, recent });
             }
 
@@ -468,7 +473,7 @@ export default {
                 const existing = await getOpenPoem(env.DB, booklet.id);
                 if (existing) {
                     // 已经有人开了头 → 让客户端改去接龙
-                    return json({ ok: false, error: 'poem-open', booklet: bookletView(booklet), poem: poemView(existing, await loadLines(env.DB, existing.id)) }, 409);
+                    return json({ ok: false, error: 'poem-open', booklet: bookletView(booklet), poem: poemView(existing, await loadLines(env.DB, existing.id), device) }, 409);
                 }
                 const title = clipLine(body.title, 40) || '无题';
                 const firstLine = clipLine(body.firstLine, booklet.chars_per_line);
@@ -482,7 +487,7 @@ export default {
                     .bind(uuid(), poemId, booklet.id, 1, device, pen, firstLine, now).run();
                 const poemRow = (await env.DB.prepare(`SELECT * FROM po_poems WHERE id = ?`).bind(poemId).first<PoemRow>())!;
                 const synced = await syncPoem(env.DB, poemRow);
-                return json({ ok: true, booklet: bookletView(await ensureBooklet(env.DB)), poem: poemView(synced, await loadLines(env.DB, poemId)) });
+                return json({ ok: true, booklet: bookletView(await ensureBooklet(env.DB)), poem: poemView(synced, await loadLines(env.DB, poemId), device) });
             }
 
             // ── 接龙：给指定诗续一句。写满篇幅自动封存 ──
@@ -495,7 +500,7 @@ export default {
                 if (!device || !poemId) return json({ ok: false, error: 'bad request' }, 400);
                 const poem = await env.DB.prepare(`SELECT * FROM po_poems WHERE id = ?`).bind(poemId).first<PoemRow>();
                 if (!poem) return json({ ok: true, gone: true });
-                if (poem.status !== 'open') return json({ ok: true, sealed: true, poem: poemView(poem, await loadLines(env.DB, poemId)) });
+                if (poem.status !== 'open') return json({ ok: true, sealed: true, poem: poemView(poem, await loadLines(env.DB, poemId), device) });
                 const bkRow = await env.DB.prepare(`SELECT chars_per_line FROM po_booklets WHERE id = ?`).bind(poem.booklet_id).first<{ chars_per_line: number }>();
                 const content = clipLine(body.content, bkRow?.chars_per_line ?? SIG_CPL);
                 if (content) {
@@ -508,18 +513,25 @@ export default {
                     } catch { /* 抢到同一 seq，本次落空，下个周期再续 */ }
                 }
                 const synced = await syncPoem(env.DB, poem);
-                return json({ ok: true, sealed: synced.status === 'sealed', poem: poemView(synced, await loadLines(env.DB, poemId)) });
+                return json({ ok: true, sealed: synced.status === 'sealed', poem: poemView(synced, await loadLines(env.DB, poemId), device) });
             }
 
-            // ── 翻阅诗集：已封存的诗（含全文），最近优先 ──
+            // ── 翻阅诗集：已封存的诗（含全文），最近优先。mine=1 只看本机参与过的 ──
             if (req.method === 'GET' && ends('/poem/feed')) {
                 const limit = Math.min(Math.max(num(url.searchParams.get('limit') || '', 30), 1), 100);
                 const bookletId = url.searchParams.get('booklet') || '';
-                const rows = bookletId
-                    ? await env.DB.prepare(`SELECT * FROM po_poems WHERE status = 'sealed' AND booklet_id = ? ORDER BY sealed_at DESC LIMIT ?`).bind(bookletId, limit).all<PoemRow>()
-                    : await env.DB.prepare(`SELECT * FROM po_poems WHERE status = 'sealed' ORDER BY sealed_at DESC LIMIT ?`).bind(limit).all<PoemRow>();
+                const myDev = String(url.searchParams.get('device') || '').slice(0, 80) || undefined;
+                const mineOnly = url.searchParams.get('mine') === '1' && myDev;
+                let rows;
+                if (mineOnly) {
+                    rows = await env.DB.prepare(`SELECT * FROM po_poems WHERE status = 'sealed' AND id IN (SELECT DISTINCT poem_id FROM po_poem_lines WHERE device = ?) ORDER BY sealed_at DESC LIMIT ?`).bind(myDev, limit).all<PoemRow>();
+                } else if (bookletId) {
+                    rows = await env.DB.prepare(`SELECT * FROM po_poems WHERE status = 'sealed' AND booklet_id = ? ORDER BY sealed_at DESC LIMIT ?`).bind(bookletId, limit).all<PoemRow>();
+                } else {
+                    rows = await env.DB.prepare(`SELECT * FROM po_poems WHERE status = 'sealed' ORDER BY sealed_at DESC LIMIT ?`).bind(limit).all<PoemRow>();
+                }
                 const poems = [];
-                for (const r of (rows.results || [])) poems.push(poemView(r, await loadLines(env.DB, r.id)));
+                for (const r of (rows.results || [])) poems.push(poemView(r, await loadLines(env.DB, r.id), myDev));
                 return json({ ok: true, poems });
             }
 

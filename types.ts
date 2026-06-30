@@ -1068,6 +1068,8 @@ export interface SignalPoemLine {
     pen: string;
     content: string;
     createdAt: number;
+    /** 仅当请求带本机 device 时由后端标注：这一句是不是「我的 char」写的（认领用，不暴露别人 device） */
+    mine?: boolean;
 }
 
 /** 一首接龙诗（后端是源头，前端按需拉取）。 */
@@ -1083,6 +1085,8 @@ export interface SignalPoem {
     lines: SignalPoemLine[];
     createdAt: number;
     sealedAt?: number;
+    /** 仅当请求带本机 device 时：这首诗里有几句是「我的」（>0 = 我参与过，星图打光晕） */
+    mineCount?: number;
 }
 
 /** 一本册子（容器 + 规格）。 */

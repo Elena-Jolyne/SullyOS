@@ -44,9 +44,9 @@ export const Signal = {
         try { await call('/poem/current'); return true; } catch { return false; }
     },
 
-    /** 读当前态：册子规格 + 那首未写完的诗(全文) + 近期封存几首。 */
+    /** 读当前态：册子规格 + 那首未写完的诗(全文) + 近期封存几首。带本机 device → 句子回 mine 标记。 */
     async current(): Promise<SignalState> {
-        return await call<SignalState>('/poem/current');
+        return await call<SignalState>('/poem/current', { query: { device: getDeviceId() } });
     },
 
     /**
@@ -68,9 +68,15 @@ export const Signal = {
         });
     },
 
-    /** 翻阅诗集：已封存的诗（含全文），最近优先。 */
-    async feed(limit = 30, bookletId?: string): Promise<SignalPoem[]> {
-        const r = await call<{ poems: SignalPoem[] }>('/poem/feed', { query: { limit: String(limit), ...(bookletId ? { booklet: bookletId } : {}) } });
+    /** 翻阅诗集：已封存的诗（含全文），最近优先。mineOnly = 只看本机 char 参与过的；带 device → 句子回 mine 标记。 */
+    async feed(limit = 30, opts?: { mineOnly?: boolean; bookletId?: string }): Promise<SignalPoem[]> {
+        const r = await call<{ poems: SignalPoem[] }>('/poem/feed', {
+            query: {
+                limit: String(limit), device: getDeviceId(),
+                ...(opts?.mineOnly ? { mine: '1' } : {}),
+                ...(opts?.bookletId ? { booklet: opts.bookletId } : {}),
+            },
+        });
         return r.poems || [];
     },
 };
