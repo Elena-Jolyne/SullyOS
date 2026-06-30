@@ -527,6 +527,9 @@ export default {
                 const poem = await env.DB.prepare(`SELECT * FROM po_poems WHERE id = ?`).bind(poemId).first<PoemRow>();
                 if (!poem) return json({ ok: true, gone: true });
                 if (poem.status !== 'open') return json({ ok: true, sealed: true, poem: poemView(poem, await loadLines(env.DB, poemId), device) });
+                // 注：不做「读到旧状态就作废」的乐观锁——那会把已经生成（已花 token）的句子
+                // 扔掉。接龙撞车罕见、且现代诗松，宁可把这句接到末尾（偶尔接的是一步前的诗，
+                // 下一个人会自然缝合），也不浪费用户 token。seq=MAX+1，UNIQUE 只兜底真正同刻并发。
                 const bkRow = await env.DB.prepare(`SELECT chars_per_line FROM po_booklets WHERE id = ?`).bind(poem.booklet_id).first<{ chars_per_line: number }>();
                 const content = clipLine(body.content, bkRow?.chars_per_line ?? SIG_CPL);
                 if (content) {

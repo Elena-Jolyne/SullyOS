@@ -510,16 +510,19 @@ export async function runVRSession(deps: VRSessionDeps): Promise<VRSessionResult
                     isNew = true;
                 }
             } catch (e: any) {
-                // 起新篇时撞上别人刚起的头（409 poem-open）→ 改成给那首接一句
+                // 起新篇时撞上别人刚起的头（409 poem-open）→ 不浪费这句，接到那首末尾
                 if (signalMode === 'start' && e?.body?.poem?.id) {
                     try {
                         const r = await Signal.append({ poemId: e.body.poem.id, content: parsed.line, pen: char.name });
                         resultPoem = r.poem;
+                        isNew = false;
                     } catch { return { ok: false, room: 'signal', reason: 'signal-write-failed' }; }
                 } else {
                     return { ok: false, room: 'signal', reason: 'signal-write-failed' };
                 }
             }
+            // 诗在这期间被删/封存导致没拿到结果 → 跳过，不出空卡
+            if (!resultPoem) return { ok: false, room: 'signal', reason: 'signal-gone' };
             await updateCharacter(char.id, { vrState: { ...prevState, currentRoom: 'signal', lastActiveAt: Date.now() } });
             // 记本地精确归属：刚写下的那句（resultPoem 末句）是本 char 写的
             const myLine = resultPoem?.lines?.[resultPoem.lines.length - 1];
