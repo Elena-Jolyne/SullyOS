@@ -34,6 +34,7 @@ import ProactiveSettingsModal from '../components/chat/ProactiveSettingsModal';
 import ThinkingChainSettingsModal from '../components/chat/ThinkingChainSettingsModal';
 import { useChatAI } from '../hooks/useChatAI';
 import { cleanTextForTts, parseVoiceOutput } from '../utils/minimaxTts';
+import { collectVoiceBatchSubtitle, isPoisonedVoiceSubtitle } from '../utils/voiceSubtitle';
 import { synthesizeSpeechDetailed, characterHasVoice } from '../utils/ttsRouter';
 import { resolveMiniMaxApiKey } from '../utils/minimaxApiKey';
 import { resolveFishAudioApiKey, stripFishMarkupForDisplay, cleanTextForTtsFish } from '../utils/fishAudioTts';
@@ -41,6 +42,7 @@ import { resolveTtsProvider } from '../utils/ttsProvider';
 import { isInstantConfigReady, loadInstantConfig } from '../utils/instantPushClient';
 import { resolveActiveSound, playWhiteboxSound, unlockWhiteboxAudio, parseWhiteboxSound, upsertWhiteboxSound, stripWhiteboxSoundDirective, WhiteboxSound } from '../utils/whiteboxSound';
 import WhiteboxSoundEditor from '../components/chat/WhiteboxSoundEditor';
+import { normalizeTranslationLangLabel } from '../utils/translationLang';
 
 const VOICE_LANG_LABELS: Record<string, string> = { en: 'English', ja: '日本語', ko: '한국어', fr: 'Français', es: 'Español' };
 type InstantToolUiStatus = {
@@ -52,7 +54,7 @@ type InstantToolUiStatus = {
 };
 
 const Chat: React.FC = () => {
-    const { characters, activeCharacterId, setActiveCharacterId, updateCharacter, apiConfig, apiPresets, addApiPreset, closeApp, customThemes, removeCustomTheme, addToast, showError, userProfile, lastMsgTimestamp, groups, clearUnread, unreadMessages, realtimeConfig, memoryPalaceConfig, syncEmotionApiToAllCharacters, theme: osTheme, proactiveComposingChars } = useOS();
+    const { characters, activeCharacterId, setActiveCharacterId, updateCharacter, apiConfig, apiPresets, addApiPreset, closeApp, customThemes, removeCustomTheme, addToast, showError, userProfile, lastMsgTimestamp, groups, clearUnread, unreadMessages, realtimeConfig, memoryPalaceConfig, syncEmotionApiToAllCharacters, theme: osTheme, proactiveComposingChars, openDateWithChar } = useOS();
     const isProactiveComposing = !!(activeCharacterId && proactiveComposingChars[activeCharacterId]);
 
     // 记忆宫殿高水位（用于清空聊天时的安全检查）
@@ -144,14 +146,14 @@ const Chat: React.FC = () => {
     });
     const [translateSourceLang, setTranslateSourceLang] = useState(() => {
         // Fallback to legacy global key so existing users don't lose their setting on upgrade.
-        return localStorage.getItem(`chat_translate_source_lang_${activeCharacterId}`)
+        return normalizeTranslationLangLabel(localStorage.getItem(`chat_translate_source_lang_${activeCharacterId}`)
             || localStorage.getItem('chat_translate_source_lang')
-            || '日本語';
+            || '日本語') || '日本語';
     });
     const [translateTargetLang, setTranslateTargetLang] = useState(() => {
-        return localStorage.getItem(`chat_translate_lang_${activeCharacterId}`)
+        return normalizeTranslationLangLabel(localStorage.getItem(`chat_translate_lang_${activeCharacterId}`)
             || localStorage.getItem('chat_translate_lang')
-            || '中文';
+            || '中文') || '中文';
     });
     // Which messages are currently showing "译" version (toggle state only, no API calls)
     const [showingTargetIds, setShowingTargetIds] = useState<Set<number>>(new Set());
@@ -302,8 +304,35 @@ const Chat: React.FC = () => {
     handlePlayVoiceRef.current = handlePlayVoice;
     const onPlayVoiceStable = useCallback((id: number) => handlePlayVoiceRef.current(id), []);
 
+    // LLM 翻译兜底（语音条中外对照用）。查 res.ok + 失败重试一次 ——
+    // 以前不查状态码、失败静默吞掉，翻译一次拿不到就永远空着（「外语语音没翻译」主因）。
+    const llmTranslate = async (systemPrompt: string, text: string): Promise<string> => {
+        const attempt = async (): Promise<string> => {
+            const res = await fetch(`${apiConfig.baseUrl}/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiConfig.apiKey}` },
+                body: JSON.stringify({
+                    model: apiConfig.model,
+                    messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: text }],
+                    temperature: 0.3,
+                }),
+            });
+            if (!res.ok) throw new Error(`translate http ${res.status}`);
+            const data = await res.json();
+            return data?.choices?.[0]?.message?.content?.trim() || '';
+        };
+        try { return await attempt(); }
+        catch { try { return await attempt(); } catch { return ''; } }
+    };
+
     const handleManualTts = async (msg: Message, autoTriggered = false) => {
-        if (voiceDataMap[msg.id] || voiceLoading.has(msg.id)) return;
+        if (voiceLoading.has(msg.id)) return;
+        if (voiceDataMap[msg.id]) {
+            if (autoTriggered) return;
+            // 手动点「转换语音」= 用户要求重新生成（典型场景：编辑了消息内容后）。
+            // 丢掉这条旧语音再走正常合成；文本没变时会命中共享 TTS 缓存，不会重复请求 API。
+            discardVoiceForMessages([msg.id]);
+        }
 
         // Parse the structured voice output: spoken text (sanitized) + per-message emotion.
         const parsedVoice = parseVoiceOutput(msg.content);
@@ -343,25 +372,20 @@ const Chat: React.FC = () => {
                 // AI already provided the spoken text (possibly translated) in <语音> tag.
                 // parseVoiceOutput already sanitized it (whitelisted sound tags only).
                 spokenText = voiceTagContent;
-                // originalText = text OUTSIDE the voice tag (the display/Chinese text)
-                const textOutsideTag = msg.content.replace(/<[语語]音[^>]*>[\s\S]*?<\/[语語]音>/g, '').trim();
-                originalText = textOutsideTag ? cleanTextForTts(textOutsideTag) : '';
-                // If voice lang is set and no Chinese text outside the tag, translate spoken text back to Chinese
+                // 翻译第一优先级: 模型显式给的 <字幕> 标签 —— 确定性, 不用猜也不用调 LLM。
+                // 其次是标签外的文字 (老格式 / 模型没写字幕时的兜底)。
+                // parseVoiceOutput 已做标签自愈 + 提取, 别再自己 replace 一遍。
+                originalText = parsedVoice.subtitle
+                    || (parsedVoice.display ? cleanTextForTts(parsedVoice.display) : '');
+                // 字幕对齐模式下中文字幕通常被 chunk 成同批次的独立气泡, 语音消息标签外没字。
+                // 先从兄弟气泡把字幕收回来当翻译 —— 确定性、零成本、跟用户看到的字幕逐字一致。
+                // (内部有结构对齐校验: 模型没守字幕格式、标签外是闲聊短句时返回空, 走下面 LLM)
+                if (voiceLang && !originalText) {
+                    originalText = collectVoiceBatchSubtitle(messages, msg.id);
+                }
+                // 收不到 (纯语音回合 / 字幕对不齐) 再让 LLM 把外语翻回中文, 带 ok 检查 + 重试。
                 if (voiceLang && !originalText && spokenText) {
-                    try {
-                        const transRes = await fetch(`${apiConfig.baseUrl}/chat/completions`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiConfig.apiKey}` },
-                            body: JSON.stringify({
-                                model: apiConfig.model,
-                                messages: [{ role: 'system', content: '把以下内容翻译成中文。只输出翻译结果，不要任何解释。' }, { role: 'user', content: spokenText }],
-                                temperature: 0.3,
-                            }),
-                        });
-                        const transData = await transRes.json();
-                        const chineseText = transData?.choices?.[0]?.message?.content?.trim();
-                        if (chineseText) originalText = chineseText;
-                    } catch { /* keep originalText empty */ }
+                    originalText = await llmTranslate('把以下内容翻译成中文。只输出翻译结果，不要任何解释。', spokenText);
                 }
             } else {
                 // Manual TTS (long-press): no <语音> tag.
@@ -391,20 +415,8 @@ const Chat: React.FC = () => {
                     }
                     if (voiceLang) {
                         const langLabel = VOICE_LANG_LABELS[voiceLang] || voiceLang;
-                        try {
-                            const transRes = await fetch(`${apiConfig.baseUrl}/chat/completions`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiConfig.apiKey}` },
-                                body: JSON.stringify({
-                                    model: apiConfig.model,
-                                    messages: [{ role: 'system', content: `Translate the following text to ${langLabel}. Output ONLY the translation, nothing else.` }, { role: 'user', content: originalText }],
-                                    temperature: 0.3,
-                                }),
-                            });
-                            const transData = await transRes.json();
-                            const translated = transData?.choices?.[0]?.message?.content?.trim();
-                            if (translated) spokenText = translated;
-                        } catch { /* use original */ }
+                        const translated = await llmTranslate(`Translate the following text to ${langLabel}. Output ONLY the translation, nothing else.`, originalText);
+                        if (translated) spokenText = translated;
                     }
                 }
             }
@@ -537,7 +549,15 @@ const Chat: React.FC = () => {
                         url = stored.remoteUrl;
                     }
                     if (!url) continue;
-                    updates[m.id] = { url, originalText: stored.originalText || '', spokenText: stored.spokenText, lang: stored.lang };
+                    let originalText = stored.originalText || '';
+                    // 存量毒数据自愈: 07-02~07-04 的版本曾把同回合的闲聊短句当翻译存进来
+                    // (收字幕没做对齐校验)。认出来就清掉并回写, 别让错翻译一直挂在面板上。
+                    if (stored.lang && originalText && isPoisonedVoiceSubtitle(messages, m.id, originalText)) {
+                        originalText = '';
+                        DB.saveAssetRaw(voiceAssetKey(m.id), { ...stored, originalText: '' })
+                            .catch(() => { /* 回写失败下次进聊天再试 */ });
+                    }
+                    updates[m.id] = { url, originalText, spokenText: stored.spokenText, lang: stored.lang };
                 } catch { /* ignore single-message hydration errors */ }
             }
             if (cancelled || !Object.keys(updates).length) return;
@@ -628,14 +648,14 @@ const Chat: React.FC = () => {
                 setTranslationEnabled(JSON.parse(localStorage.getItem(`chat_translate_enabled_${activeCharacterId}`) || 'false'));
             } catch { setTranslationEnabled(false); }
             setTranslateSourceLang(
-                localStorage.getItem(`chat_translate_source_lang_${activeCharacterId}`)
+                normalizeTranslationLangLabel(localStorage.getItem(`chat_translate_source_lang_${activeCharacterId}`)
                 || localStorage.getItem('chat_translate_source_lang')
-                || '日本語'
+                || '日本語') || '日本語'
             );
             setTranslateTargetLang(
-                localStorage.getItem(`chat_translate_lang_${activeCharacterId}`)
+                normalizeTranslationLangLabel(localStorage.getItem(`chat_translate_lang_${activeCharacterId}`)
                 || localStorage.getItem('chat_translate_lang')
-                || '中文'
+                || '中文') || '中文'
             );
             setVisibleCount(30);
             visibleCountRef.current = 30;
@@ -1142,6 +1162,7 @@ const Chat: React.FC = () => {
             case 'select-category': setActiveCategory(payload); break;
             case 'category-options': setSelectedCategory(payload); setModalType('category-options'); break;
             case 'delete-category-req': setSelectedCategory(payload); setModalType('delete-category'); break;
+            case 'meetup': if (char) { setShowPanel('none'); openDateWithChar(char.id); } break;
             case 'proactive': setShowProactiveModal(true); break;
             case 'emotion': setModalType('schedule'); break; // 情绪已并入日程，打开同一 modal
             case 'schedule': setModalType('schedule'); break;
@@ -2063,7 +2084,10 @@ const Chat: React.FC = () => {
 
     const confirmEditMessage = async () => {
         if (!selectedMessage) return;
+        const contentChanged = editContent !== selectedMessage.content;
         await DB.updateMessage(selectedMessage.id, editContent);
+        // 内容变了旧语音就作废，否则语音条仍会播放编辑前的音频。
+        if (contentChanged) discardVoiceForMessages([selectedMessage.id]);
         setMessages(prev => prev.map(m => m.id === selectedMessage.id ? { ...m, content: editContent } : m));
         setModalType('none');
         setSelectedMessage(null);
@@ -2643,8 +2667,8 @@ const Chat: React.FC = () => {
                 onToggleTranslation={() => { const next = !translationEnabled; setTranslationEnabled(next); localStorage.setItem(`chat_translate_enabled_${activeCharacterId}`, JSON.stringify(next)); if (!next) { setShowingTargetIds(new Set()); } }}
                 translateSourceLang={translateSourceLang}
                 translateTargetLang={translateTargetLang}
-                onSetTranslateSourceLang={(lang: string) => { setTranslateSourceLang(lang); localStorage.setItem(`chat_translate_source_lang_${activeCharacterId}`, lang); setShowingTargetIds(new Set()); }}
-                onSetTranslateLang={(lang: string) => { setTranslateTargetLang(lang); localStorage.setItem(`chat_translate_lang_${activeCharacterId}`, lang); setShowingTargetIds(new Set()); }}
+                onSetTranslateSourceLang={(lang: string) => { const next = normalizeTranslationLangLabel(lang); if (!next) return; setTranslateSourceLang(next); localStorage.setItem(`chat_translate_source_lang_${activeCharacterId}`, next); setShowingTargetIds(new Set()); }}
+                onSetTranslateLang={(lang: string) => { const next = normalizeTranslationLangLabel(lang); if (!next) return; setTranslateTargetLang(next); localStorage.setItem(`chat_translate_lang_${activeCharacterId}`, next); setShowingTargetIds(new Set()); }}
                 xhsEnabled={!!char.xhsEnabled}
                 onToggleXhs={() => updateCharacter(char.id, { xhsEnabled: !char.xhsEnabled })}
                 htmlModeEnabled={!!(char as any).htmlModeEnabled}
@@ -2753,6 +2777,9 @@ const Chat: React.FC = () => {
                 if (r.selfInsights.length) groups.push({ key: 'insights', label: '自我领悟', icon: '💡', accent: '#f59e0b', items: r.selfInsights.map(t => ({ content: t })) });
                 if (r.selfConfused.length) groups.push({ key: 'confused', label: '新的自我困惑', icon: '🌀', accent: '#6366f1', items: r.selfConfused.map(e => ({ content: e.content })) });
                 if (r.synthesizedUser.length) groups.push({ key: 'synth', label: '用户认知整合', icon: '👤', accent: '#0ea5e9', items: r.synthesizedUser.map(e => ({ content: e.content, sub: e.category })) });
+                if (r.worries?.length) groups.push({ key: 'worries', label: '回看引发的担忧', icon: '😟', accent: '#f97316', items: r.worries.map(e => ({ content: e.content })) });
+                if (r.aspirations?.length) groups.push({ key: 'aspirations', label: '新的期盼', icon: '🌟', accent: '#eab308', items: r.aspirations.map(e => ({ content: e.content })) });
+                if (r.distilled?.length) groups.push({ key: 'distilled', label: '沉淀到门牌', icon: '🚪', accent: '#a855f7', items: r.distilled.map(e => ({ content: e.content })) });
                 if (r.fulfilled.length) groups.push({ key: 'fulfilled', label: '期盼实现', icon: '✨', accent: '#22c55e', items: r.fulfilled.map(e => ({ content: e.content })) });
                 if (r.disappointed.length) groups.push({ key: 'disappointed', label: '期盼落空', icon: '🍂', accent: '#94a3b8', items: r.disappointed.map(e => ({ content: e.content })) });
                 if (r.faded.length) groups.push({ key: 'faded', label: '淡忘', icon: '🌫️', accent: '#cbd5e1', items: r.faded.map(e => ({ content: e.content })) });

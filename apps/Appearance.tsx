@@ -7,6 +7,7 @@ import { processImage, processImageToBlob } from '../utils/file';
 import { putImageBlob } from '../utils/blobRef';
 import { DB } from '../utils/db';
 import { isStatusBarHidden } from '../utils/iosStandalone';
+import { confirmExportSafety } from '../utils/exportGuard';
 import { Sparkle } from '@phosphor-icons/react';
 import { ChatAppearanceEditor as ModularChatAppearanceEditor } from '../components/appearance/ChatAppearanceEditor';
 import { Capacitor } from '@capacitor/core';
@@ -430,8 +431,10 @@ const PresetManager: React.FC<PresetManagerProps> = ({ presets, onSave, onApply,
 
     const handleExport = async (id: string) => {
         try {
-            const blob = await onExport(id);
             const preset = presets.find(p => p.id === id);
+            // 导出前明文密钥体检 + 二次确认（外观预设正常不含密钥 → 提示「安全，可分享」）。
+            if (!(await confirmExportSafety(preset))) return;
+            const blob = await onExport(id);
             const fileName = `appearance_${preset?.name || 'preset'}.zip`;
             const title = `外观预设 - ${preset?.name || 'preset'}`;
 

@@ -13,6 +13,7 @@ import { ContextBuilder } from '../utils/context';
 import { formatMessageWithTime, formatMessageForPrompt } from '../utils/messageFormat';
 import { DEFAULT_ARCHIVE_PROMPTS } from '../components/chat/ChatConstants';
 import ImpressionPanel from '../components/character/ImpressionPanel';
+import RoomPlatePanel from '../components/character/RoomPlatePanel';
 import MemoryArchivist from '../components/character/MemoryArchivist';
 import { safeFetchJson, extractContent } from '../utils/safeApi';
 import { fetchMiniMaxVoices, MiniMaxVoiceItem } from '../utils/minimaxVoice';
@@ -21,6 +22,8 @@ import { normalizeUserImpression } from '../utils/impression';
 import { injectMemoryPalace } from '../utils/memoryPalace/pipeline';
 import { COMMON_TIMEZONES } from '../utils/timezone';
 import { toMountedWorldbook } from '../utils/worldbook';
+import { stripSensitiveCardFields } from '../utils/characterCard';
+import { confirmExportSafety } from '../utils/exportGuard';
 
 const CharacterCard: React.FC<{
     char: CharacterProfile;
@@ -57,10 +60,10 @@ const CharacterCard: React.FC<{
 );
 
 const Character: React.FC = () => {
-  const { closeApp, openApp, characters, activeCharacterId, setActiveCharacterId, addCharacter, updateCharacter, deleteCharacter, apiConfig, addToast, userProfile, customThemes, addCustomTheme, worldbooks, addWorldbook } = useOS();
+  const { closeApp, openApp, characters, activeCharacterId, setActiveCharacterId, addCharacter, updateCharacter, deleteCharacter, apiConfig, addToast, userProfile, worldbooks, addWorldbook } = useOS();
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [charPage, setCharPage] = useState(0); // 角色列表分页（每页 6 个）
-  const [detailTab, setDetailTab] = useState<'identity' | 'memory' | 'impression'>('identity');
+  const [detailTab, setDetailTab] = useState<'identity' | 'memory' | 'impression' | 'plates'>('identity');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<CharacterProfile | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
@@ -807,8 +810,12 @@ ${isInitialGeneration ? `
       
       const {
           id, memories, refinedMemories, activeMemoryMonths, impression, guidebookInsights,
-          ...cardProps
+          ...rest
       } = formData;
+
+      // 只导出「角色」本身：凭据 / 美化 / 语言偏好 / 运行时状态一律剥离，
+      // 绝不把发卡人的 API 密钥等私密字段打包进卡里。清单见 utils/characterCard.ts。
+      const cardProps = stripSensitiveCardFields(rest);
 
       const exportData: CharacterExportData = {
           ...cardProps,
@@ -816,12 +823,8 @@ ${isInitialGeneration ? `
           type: 'sully_character_card'
       };
 
-      if (formData.bubbleStyle) {
-          const customTheme = customThemes.find(t => t.id === formData.bubbleStyle);
-          if (customTheme) {
-              exportData.embeddedTheme = customTheme;
-          }
-      }
+      // 导出前明文密钥体检 + 二次确认：正常为「安全，可分享」；若意外检出密钥则中止并提示上报。
+      if (!(await confirmExportSafety(exportData))) return;
 
       const json = JSON.stringify(exportData, null, 2);
       const fileName = `${formData.name || 'Character'}_Card.json`;
@@ -900,12 +903,10 @@ ${isInitialGeneration ? `
                   throw new Error('无效的角色卡文件');
               }
 
-              if (data.embeddedTheme) {
-                  const exists = customThemes.some(t => t.id === data.embeddedTheme!.id);
-                  if (!exists) {
-                      addCustomTheme(data.embeddedTheme);
-                  }
-              }
+              // 导入侧同样剥离凭据 / 美化 / 语言 / 运行时状态：即便对方给的是旧版
+              // 角色卡（把 API 密钥等私密字段一起打包了），也不会被写进本地角色，
+              // 不会用发卡人的 key / 主题 / 语言偏好覆盖你自己的。清单见 utils/characterCard.ts。
+              const safeData = stripSensitiveCardFields(data);
 
               // Sync mounted worldbooks into the global worldbook app so they
               // appear under their original category (or the character's name
@@ -930,13 +931,12 @@ ${isInitialGeneration ? `
               }
 
               const newChar: CharacterProfile = {
-                  ...data,
+                  ...safeData,
                   id: `char-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                   memories: [],
                   refinedMemories: {},
                   activeMemoryMonths: [],
                   mountedWorldbooks: incomingMounted,
-                  embeddedTheme: undefined
               } as CharacterProfile;
 
               await DB.saveCharacter(newChar);
@@ -1035,6 +1035,7 @@ ${isInitialGeneration ? `
                        <button onClick={() => setDetailTab('identity')} className={`pb-2 transition-colors relative ${detailTab === 'identity' ? 'text-slate-800' : ''}`}>设定{detailTab === 'identity' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-full"></div>}</button>
                        <button onClick={() => setDetailTab('memory')} className={`pb-2 transition-colors relative ${detailTab === 'memory' ? 'text-slate-800' : ''}`}>记忆 ({(formData.memories || []).length}){detailTab === 'memory' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-full"></div>}</button>
                        <button onClick={() => setDetailTab('impression')} className={`pb-2 transition-colors relative ${detailTab === 'impression' ? 'text-slate-800' : ''}`}>印象{detailTab === 'impression' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-full"></div>}</button>
+                       <button onClick={() => setDetailTab('plates')} className={`pb-2 transition-colors relative ${detailTab === 'plates' ? 'text-slate-800' : ''}`}>门牌{detailTab === 'plates' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-full"></div>}</button>
                    </div>
                  </div>
                </div>
@@ -1413,6 +1414,10 @@ ${isInitialGeneration ? `
                            onUpdateImpression={(newImp) => handleChange('impression', newImp)}
                            onDelete={() => handleChange('impression', undefined)}
                        />
+                   )}
+
+                   {detailTab === 'plates' && formData.id && (
+                       <RoomPlatePanel charId={formData.id} userName={userProfile.name} />
                    )}
                </div>
            </div>

@@ -17,7 +17,9 @@ import { exportMcdLocal, importMcdLocal } from './mcdMcpClient';
 import { exportWorldHomeLocal, importWorldHomeLocal } from './worldHome/localBackup';
 
 const DB_NAME = 'AetherOS_Data';
-const DB_VERSION = 66; // Bumped: v65 blob_assets（图片 Blob 存储）；v66 生活记录（档案 App）life_records / med_plans / life_record_settings
+// v67：两条并行线各自用掉了 v65/v66（A线: blob_assets + 生活记录；B线: room_plates 门牌 + digest_reports 消化日志），
+// 合并后统一推到 67——建表全部走幂等的 if(!contains)，任一侧的 v66 老库升级时都会补齐缺的那组表。
+const DB_VERSION = 67;
 
 const STORE_CHARACTERS = 'characters';
 const STORE_MESSAGES = 'messages';
@@ -387,6 +389,18 @@ export const openDB = (): Promise<IDBDatabase> => {
       if (!db.objectStoreNames.contains('event_boxes')) {
           const ebStore = db.createObjectStore('event_boxes', { keyPath: 'id' });
           ebStore.createIndex('charId', 'charId', { unique: false });
+      }
+
+      // ─── 房间门牌（v65 新增，情景→语义固化层） ───────
+      if (!db.objectStoreNames.contains('room_plates')) {
+          const rpStore = db.createObjectStore('room_plates', { keyPath: 'id' });
+          rpStore.createIndex('charId', 'charId', { unique: false });
+      }
+
+      // ─── 消化日志（v66 新增，认知消化可回看记录） ─────
+      if (!db.objectStoreNames.contains('digest_reports')) {
+          const drStore = db.createObjectStore('digest_reports', { keyPath: 'id' });
+          drStore.createIndex('charId', 'charId', { unique: false });
       }
 
       // ─── v48 一次性强制清空记忆宫殿（EventBox 体系，旧 boxId 数据不兼容） ───
