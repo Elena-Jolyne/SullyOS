@@ -17,6 +17,7 @@ import PixelHomeView from './pixelHome/PixelHomeView';
 import WorldHomeApp from './WorldHomeApp';
 import DreamTheater from './DreamTheater';
 import { useDreamSim, dreamSimStore } from '../utils/dreamSimStore';
+import { roomLaunch } from '../utils/roomLaunch';
 
 const TWEMOJI_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72';
 const twemojiUrl = (codepoint: string) => `${TWEMOJI_BASE}/${codepoint}.png`;
@@ -505,6 +506,25 @@ const RoomApp: React.FC = () => {
         }
         dreamSimStore.clearDeepLink();
     }, [dreamSim.deepLink, dreamSimCharId, characters]);
+
+    // 桌面主题（TamagotchiHome）的世界化入口：挂载时消费一次「进小屋意图」，
+    // 落到指定 tab / 指定角色 / 直接开梦境。只在首次挂载跑一次。
+    useEffect(() => {
+        const intent = roomLaunch.consume();
+        if (!intent) return;
+        if (intent.tab && intent.tab !== 'room') {
+            // 家园 / 像素家园：停在 select 页并切到对应 tab（tab 内容自渲染）
+            setHomeTab(intent.tab);
+            return;
+        }
+        const c = intent.charId ? characters.find(x => x.id === intent.charId) : null;
+        if (c) {
+            setHomeTab('room');
+            handleEnterRoom(c);
+            if (intent.openDream) setShowDream(true);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Fallback Initialization: Used when main generation fails due to Safety Block
     const initializeFallback = async (c: CharacterProfile) => {
