@@ -2642,7 +2642,15 @@ export interface LifeRecord {
     note?: string;
 }
 
-/** 药盒「计划」：每天几点吃什么药（每日打卡产生 module='med' 的 LifeRecord） */
+/**
+ * 药盒「计划」：像设长期闹钟一样只写一次，每天按频率派生"今日待服"
+ * （打卡产生 module='med' 的 LifeRecord）。
+ * - planKind 'longterm'：长期在服（保健品等），无期限；
+ * - planKind 'course'：短期疗程，startDate ~ endDate 之间才生效。
+ * - intervalDays：服药频率，1=每天（默认）、2=每隔一天、3=每三天…
+ *   锚点日取 startDate（无则取创建当天），按天数差取模判断今天是否该吃。
+ * 旧数据无这些字段 → 视为长期 + 每天，行为与旧版一致。
+ */
 export interface MedPlan {
     id: string;
     name: string;              // 药名
@@ -2651,6 +2659,10 @@ export interface MedPlan {
     note?: string;
     enabled: boolean;
     createdAt: number;
+    planKind?: 'longterm' | 'course';
+    intervalDays?: number;     // 默认 1（每天）
+    startDate?: string;        // YYYY-MM-DD（course 必填；也作为 interval 锚点）
+    endDate?: string;          // YYYY-MM-DD（course 专用，含当天）
 }
 
 /** 生活记录全局设置（单例 id='main'） */
@@ -2663,6 +2675,10 @@ export interface LifeRecordSettings {
      * 隐藏 = 前端不再显示 + 对所有角色断掉该模块注入与代记（优先级高于角色小开关）。
      */
     hiddenModules?: LifeRecordModule[];
+    /** 锻炼周计划：每周目标次数（角色会据此监督执行） */
+    exerciseWeeklyGoal?: number;
+    /** 锻炼周计划：文字规划（如"周一跑步 / 周四力量"），会注入给角色 */
+    exercisePlanNote?: string;
 }
 
 export interface HandbookEntry {
